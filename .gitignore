@@ -1,1 +1,4 @@
 dist/
+testdata/fixtures/repo/
+coverage.html
+coverage.out
