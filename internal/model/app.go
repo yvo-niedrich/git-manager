@@ -48,8 +48,7 @@ type App struct {
 	branches    BranchesModel
 	commits     CommitsModel
 	detail      DetailModel
-	menu        ContextMenuModel
-	menuOpen    bool
+	dialogs     dialogStack
 	focus       panel
 	wf          *git.Workflows
 	client      *git.Client
@@ -116,10 +115,8 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case tea.KeyMsg:
-		if a.menuOpen {
-			var cmd tea.Cmd
-			a.menu, cmd = a.menu.Update(msg)
-			return a, cmd
+		if a.dialogs.IsOpen() {
+			return a, a.dialogs.Update(msg)
 		}
 		if msg.String() == "ctrl+c" {
 			return a, tea.Quit
@@ -148,12 +145,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return a, a.handlePanelKey(msg)
 
-	case MenuClosedMsg:
-		a.menuOpen = false
-		return a, nil
-
 	case MenuSelectedMsg:
-		a.menuOpen = false
 		return a, a.handleMenuAction(msg.Action)
 
 	case BranchSelectedMsg:
@@ -220,15 +212,14 @@ func (a *App) View() string {
 
 	bg := a.renderPanels() + a.renderStatusBar()
 
-	if a.menuOpen {
-		const mX, mY = 4, 3   // outer margin from terminal edges
+	if a.dialogs.IsOpen() {
+		const mX, mY = 4, 3    // outer margin from terminal edges
 		const padX, padY = 2, 1 // black gutter around the box
 
-		box := a.menu.View()
+		box := a.dialogs.Active().View()
 		boxW := lipgloss.Width(box)
 		boxH := lipgloss.Height(box)
 
-		// Build a solid black backdrop sized to box + gutter on all sides.
 		compW := boxW + 2*padX
 		compH := boxH + 2*padY
 		blackLine := lipgloss.NewStyle().
@@ -240,7 +231,6 @@ func (a *App) View() string {
 		}
 		backdrop := strings.Join(backdropRows, "\n")
 
-		// Composite box onto backdrop, then place composite over panels.
 		composite := ui.PlaceOverlay(padX, padY, box, backdrop)
 		outerX := mX + max(0, (a.termW-2*mX-compW)/2)
 		outerY := mY + max(0, (h-2*mY-compH)/2)
@@ -342,8 +332,7 @@ func (a *App) openContextMenu() tea.Cmd {
 	if len(items) == 0 {
 		return nil
 	}
-	a.menu = NewContextMenu(items)
-	a.menuOpen = true
+	a.dialogs.Push(NewContextMenu(items))
 	return nil
 }
 
@@ -408,11 +397,12 @@ func (a *App) handleMenuAction(action MenuAction) tea.Cmd {
 	case ActionDeleteBranch:
 		if sel := a.branches.Selected(); sel != nil {
 			branch := sel.Name
-			a.detail.AskConfirm(fmt.Sprintf("Delete branch %q?", branch), func() tea.Cmd {
-				return a.runWorkflow(func() git.WorkflowResult { return a.wf.DeleteBranch(branch, false) })
-			})
-			a.focus = panelDetail
-			a.syncFocus()
+			a.dialogs.Push(NewConfirmDialog(
+				fmt.Sprintf("Delete branch %q?", branch),
+				func() tea.Cmd {
+					return a.runWorkflow(func() git.WorkflowResult { return a.wf.DeleteBranch(branch, false) })
+				},
+			))
 		}
 	case ActionPush:
 		if sel := a.branches.Selected(); sel != nil {
@@ -422,11 +412,12 @@ func (a *App) handleMenuAction(action MenuAction) tea.Cmd {
 	case ActionForcePush:
 		if sel := a.branches.Selected(); sel != nil {
 			branch := sel.Name
-			a.detail.AskConfirm(fmt.Sprintf("Force-push %q to origin? This overwrites remote history.", branch), func() tea.Cmd {
-				return a.runWorkflow(func() git.WorkflowResult { return a.wf.ForcePush("origin", branch) })
-			})
-			a.focus = panelDetail
-			a.syncFocus()
+			a.dialogs.Push(NewConfirmDialog(
+				fmt.Sprintf("Force-push %q to origin? This overwrites remote history.", branch),
+				func() tea.Cmd {
+					return a.runWorkflow(func() git.WorkflowResult { return a.wf.ForcePush("origin", branch) })
+				},
+			))
 		}
 	case ActionPull:
 		if sel := a.branches.Selected(); sel != nil {
@@ -449,17 +440,16 @@ func (a *App) handleMenuAction(action MenuAction) tea.Cmd {
 		if sel := a.commits.Selected(); sel != nil {
 			hash := sel.Hash
 			short := sel.ShortHash
-			a.detail.AskConfirm(fmt.Sprintf("Drop commit %s from history?", short), func() tea.Cmd {
-				return a.runWorkflow(func() git.WorkflowResult { return a.wf.DropCommit(hash) })
-			})
-			a.focus = panelDetail
-			a.syncFocus()
+			a.dialogs.Push(NewConfirmDialog(
+				fmt.Sprintf("Drop commit %s from history?", short),
+				func() tea.Cmd {
+					return a.runWorkflow(func() git.WorkflowResult { return a.wf.DropCommit(hash) })
+				},
+			))
 		}
 	case ActionAmend:
 		if sel := a.commits.Selected(); sel != nil {
-			a.detail.StartAmend(sel.Subject)
-			a.focus = panelDetail
-			a.syncFocus()
+			a.dialogs.Push(NewAmendDialog(sel.Subject))
 		}
 	case ActionSquash:
 		hashes := a.commits.SelectedHashes()

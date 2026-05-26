@@ -44,7 +44,6 @@ type ContextMenuModel struct {
 type MenuSelectedMsg struct {
 	Action MenuAction
 }
-type MenuClosedMsg struct{}
 
 func BranchMenuItems(isRemote, isCurrent bool, upstream string) []MenuItem {
 	if isRemote {
@@ -91,12 +90,14 @@ func NewContextMenu(items []MenuItem) ContextMenuModel {
 	return ContextMenuModel{items: items}
 }
 
-func (m ContextMenuModel) Update(msg tea.Msg) (ContextMenuModel, tea.Cmd) {
+func (m ContextMenuModel) Priority() int { return 10 }
+
+func (m ContextMenuModel) DialogUpdate(msg tea.Msg) (DialogContent, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, key.NewBinding(key.WithKeys("esc", "q"))):
-			return m, func() tea.Msg { return MenuClosedMsg{} }
+			return nil, nil
 		case key.Matches(msg, key.NewBinding(key.WithKeys("j", "down"))):
 			m.cursor = (m.cursor + 1) % len(m.items)
 		case key.Matches(msg, key.NewBinding(key.WithKeys("k", "up"))):
@@ -104,13 +105,12 @@ func (m ContextMenuModel) Update(msg tea.Msg) (ContextMenuModel, tea.Cmd) {
 		case key.Matches(msg, key.NewBinding(key.WithKeys("enter", " "))):
 			if len(m.items) > 0 {
 				action := m.items[m.cursor].Action
-				return m, func() tea.Msg { return MenuSelectedMsg{Action: action} }
+				return nil, func() tea.Msg { return MenuSelectedMsg{Action: action} }
 			}
 		default:
-			// shortcut keys
 			for _, item := range m.items {
 				if item.Key != "" && msg.String() == item.Key {
-					return m, func() tea.Msg { return MenuSelectedMsg{Action: item.Action} }
+					return nil, func() tea.Msg { return MenuSelectedMsg{Action: item.Action} }
 				}
 			}
 		}
