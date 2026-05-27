@@ -28,7 +28,7 @@ type BranchSelectedMsg struct{ Branch git.Branch }
 
 func NewBranchesModel() BranchesModel {
 	ti := textinput.New()
-	ti.Placeholder = "filter branches..."
+	ti.Placeholder = ui.PlaceholderBranches
 	ti.CharLimit = 64
 	ti.Prompt = "/ "
 	ti.PromptStyle = ui.DimItemStyle
@@ -45,7 +45,7 @@ func (m *BranchesModel) SetSize(w, h int) {
 
 func (m *BranchesModel) SetBranches(branches []git.Branch) {
 	m.branches = branches
-	if m.cursor >= len(m.filteredBranches()) {
+	if m.cursor > len(m.filteredBranches()) {
 		m.cursor = 0
 		m.offset = 0
 	}
@@ -53,6 +53,11 @@ func (m *BranchesModel) SetBranches(branches []git.Branch) {
 
 func (m BranchesModel) IsFiltering() bool {
 	return m.filterActive
+}
+
+// IsNewBranchSelected reports whether the cursor is on the «new branch» button.
+func (m BranchesModel) IsNewBranchSelected() bool {
+	return m.cursor == m.localCount()
 }
 
 func (m BranchesModel) filteredBranches() []git.Branch {
@@ -70,12 +75,42 @@ func (m BranchesModel) filteredBranches() []git.Branch {
 	return out
 }
 
+// localCount returns the number of local branches in the filtered list.
+// The virtual «new branch» button sits at cursor position localCount().
+func (m BranchesModel) localCount() int {
+	for i, b := range m.filteredBranches() {
+		if b.IsRemote {
+			return i
+		}
+	}
+	return len(m.filteredBranches())
+}
+
+// LocalNames returns the names of all local branches currently loaded.
+func (m BranchesModel) LocalNames() []string {
+	var out []string
+	for _, b := range m.branches {
+		if !b.IsRemote {
+			out = append(out, b.Name)
+		}
+	}
+	return out
+}
+
 func (m BranchesModel) Selected() *git.Branch {
-	filtered := m.filteredBranches()
-	if len(filtered) == 0 || m.cursor >= len(filtered) {
+	if m.IsNewBranchSelected() {
 		return nil
 	}
-	b := filtered[m.cursor]
+	filtered := m.filteredBranches()
+	lc := m.localCount()
+	idx := m.cursor
+	if m.cursor > lc {
+		idx = m.cursor - 1
+	}
+	if idx < 0 || idx >= len(filtered) {
+		return nil
+	}
+	b := filtered[idx]
 	return &b
 }
 
@@ -121,7 +156,7 @@ func (m BranchesModel) Update(msg tea.Msg) (BranchesModel, tea.Cmd) {
 			}
 		case key.Matches(msg, key.NewBinding(key.WithKeys("j", "down"))):
 			filtered := m.filteredBranches()
-			if m.cursor < len(filtered)-1 {
+			if m.cursor < len(filtered) {
 				m.cursor++
 				m.clampOffset()
 			}
@@ -134,7 +169,7 @@ func (m BranchesModel) Update(msg tea.Msg) (BranchesModel, tea.Cmd) {
 			return m, m.selectionCmd()
 		case key.Matches(msg, key.NewBinding(key.WithKeys("pgdown"))):
 			filtered := m.filteredBranches()
-			m.cursor = min(m.cursor+5, len(filtered)-1)
+			m.cursor = min(m.cursor+5, len(filtered))
 			m.clampOffset()
 			return m, m.selectionCmd()
 		case key.Matches(msg, key.NewBinding(key.WithKeys("pgup"))):
@@ -160,6 +195,9 @@ func (m *BranchesModel) clampOffset() {
 }
 
 func (m BranchesModel) selectionCmd() tea.Cmd {
+	if m.IsNewBranchSelected() {
+		return nil
+	}
 	if sel := m.Selected(); sel != nil {
 		b := *sel
 		return func() tea.Msg { return BranchSelectedMsg{Branch: b} }
@@ -168,7 +206,7 @@ func (m BranchesModel) selectionCmd() tea.Cmd {
 }
 
 func (m BranchesModel) View() string {
-	title := ui.TitleStyle(m.focused).Render("Branches")
+	title := ui.TitleStyle(m.focused).Render(ui.TitleBranches)
 	innerW := ui.InnerWidth(m.width)
 	innerH := m.height - 8
 	if innerH < 1 {
@@ -180,9 +218,9 @@ func (m BranchesModel) View() string {
 	case m.filterActive:
 		filterLine = "  " + m.filterInput.View()
 	case m.filterInput.Value() != "":
-		filterLine = ui.KeyHintStyle.Render("  ~") + " " + ui.NormalItemStyle.Render(m.filterInput.Value())
+		filterLine = ui.KeyHintStyle.Render(ui.FilterActiveMark) + " " + ui.NormalItemStyle.Render(m.filterInput.Value())
 	default:
-		filterLine = ui.DimItemStyle.Render("  / filter")
+		filterLine = ui.DimItemStyle.Render(ui.FilterPrompt)
 	}
 	separator := ui.DimItemStyle.Render(strings.Repeat("─", innerW))
 
@@ -195,10 +233,8 @@ func (m BranchesModel) View() string {
 	multiRemote := len(remoteSet) > 1
 
 	filtered := m.filteredBranches()
-	visible := filtered
-	if m.offset < len(visible) {
-		visible = visible[m.offset:]
-	}
+	lc := m.localCount()
+	totalVirtual := len(filtered) + 1 // +1 for the «new branch» button at position lc
 
 	var lines []string
 	localHeaderDone := false
@@ -206,33 +242,69 @@ func (m BranchesModel) View() string {
 	lastRemote := ""
 
 	count := 0
-	for i, b := range visible {
-		idx := i + m.offset
-		if count >= innerH {
-			break
+	for vi := m.offset; vi < totalVirtual && count < innerH; vi++ {
+		isButton := vi == lc
+
+		var b *git.Branch
+		if !isButton {
+			idx := vi
+			if vi > lc {
+				idx = vi - 1
+			}
+			if idx < len(filtered) {
+				bv := filtered[idx]
+				b = &bv
+			}
 		}
 
-		if !b.IsRemote && !localHeaderDone {
-			lines = append(lines, ui.SectionStyle.Render("LOCAL"))
+		// LOCAL section header — before first local branch or before the button
+		if !localHeaderDone && (isButton || (b != nil && !b.IsRemote)) {
+			lines = append(lines, ui.SectionStyle.Render(ui.SectionLocal))
 			count++
 			localHeaderDone = true
+			if count >= innerH {
+				break
+			}
 		}
-		if b.IsRemote && !remoteHeaderDone {
+
+		// REMOTE section header
+		if !isButton && b != nil && b.IsRemote && !remoteHeaderDone {
 			if count < innerH {
-				lines = append(lines, ui.SectionStyle.Render("REMOTE"))
+				lines = append(lines, ui.SectionStyle.Render(ui.SectionRemote))
 				count++
 			}
 			remoteHeaderDone = true
+			if count >= innerH {
+				break
+			}
 		}
-		if b.IsRemote && multiRemote && b.Remote != lastRemote {
+
+		// Multi-remote sub-header
+		if !isButton && b != nil && b.IsRemote && multiRemote && b.Remote != lastRemote {
 			if count < innerH {
 				lines = append(lines, ui.SectionStyle.Render("  "+b.Remote))
 				count++
 			}
 			lastRemote = b.Remote
+			if count >= innerH {
+				break
+			}
 		}
-		if count >= innerH {
-			break
+
+		if isButton {
+			var text string
+			if m.IsNewBranchSelected() {
+				text = ui.SelectedItemStyle.Width(innerW).Render("  " + ui.NewBranchButtonLabel)
+			} else {
+				text = ui.DimItemStyle.Render("  " + ui.NewBranchButtonLabel)
+			}
+			lines = append(lines, text)
+			count++
+			continue
+		}
+
+		if b == nil {
+			continue
 		}
 
 		indent := "  "
@@ -241,7 +313,7 @@ func (m BranchesModel) View() string {
 		}
 		prefix := indent
 		if b.IsCurrent {
-			prefix = ui.HeadStyle.Render("▶ ")
+			prefix = ui.HeadStyle.Render(ui.MarkerCurrentBranch)
 		}
 
 		label := b.Name
@@ -263,13 +335,13 @@ func (m BranchesModel) View() string {
 			}
 			text = fmt.Sprintf("%s%s", prefix, label)
 		}
-		if idx == m.cursor {
+		if vi == m.cursor {
 			namePrefix := indent
 			if b.IsCurrent {
-				namePrefix = "▶ "
+				namePrefix = ui.MarkerCurrentBranch
 			}
 			if !b.IsRemote && b.Upstream != "" {
-				arrow := " -> " + b.Upstream
+				arrow := ui.MarkerUpstreamArrow + b.Upstream
 				namePart := ui.SelectedItemStyle.Render(namePrefix + b.Name)
 				hintPart := ui.SelectedItemDimStyle.Render(arrow)
 				combined := namePart + hintPart

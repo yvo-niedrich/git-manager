@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -48,41 +49,43 @@ type MenuSelectedMsg struct {
 func BranchMenuItems(isRemote, isCurrent bool, upstream string) []MenuItem {
 	if isRemote {
 		return []MenuItem{
-			{Label: "Checkout (create local tracking)", Action: ActionCheckoutRemote, Key: "c"},
-			{Label: "Fetch remote", Action: ActionFetch, Key: "f"},
+			{Label: ui.MenuCheckoutRemote, Action: ActionCheckoutRemote, Key: "c"},
+			{Label: ui.MenuFetchRemote, Action: ActionFetch, Key: "f"},
 		}
 	}
 	var items []MenuItem
 	if !isCurrent {
-		items = append(items, MenuItem{Label: "Checkout", Action: ActionCheckout, Key: "c"})
+		items = append(items,
+			MenuItem{Label: ui.MenuCheckout, Action: ActionCheckout, Key: "c"},
+			MenuItem{Label: ui.MenuMerge, Action: ActionMerge, Key: "m"},
+			MenuItem{Label: ui.MenuRebase, Action: ActionRebase, Key: "r"},
+		)
 	}
 	items = append(items,
-		MenuItem{Label: "Merge into current branch", Action: ActionMerge, Key: "m"},
-		MenuItem{Label: "Rebase current onto this", Action: ActionRebase, Key: "r"},
-		MenuItem{Label: "Push to remote", Action: ActionPush, Key: "p"},
-		MenuItem{Label: "Force-push to remote", Action: ActionForcePush, Key: "F", MenuOnly: true},
+		MenuItem{Label: ui.MenuPush, Action: ActionPush, Key: "p"},
+		MenuItem{Label: ui.MenuForcePush, Action: ActionForcePush, Key: "F", MenuOnly: true},
 	)
 	if upstream != "" {
-		items = append(items, MenuItem{Label: "Pull from " + upstream, Action: ActionPull, Key: "l"})
+		items = append(items, MenuItem{Label: fmt.Sprintf(ui.MenuPullFromFmt, upstream), Action: ActionPull, Key: "l"})
 	}
 	if !isCurrent {
-		items = append(items, MenuItem{Label: "Delete branch", Action: ActionDeleteBranch, Key: "D"})
+		items = append(items, MenuItem{Label: ui.MenuDeleteBranch, Action: ActionDeleteBranch, Key: "D"})
 	}
 	return items
 }
 
 func CommitMenuItems(isHead bool) []MenuItem {
 	items := []MenuItem{
-		{Label: "Cherry-pick onto current branch", Action: ActionCherryPick, Key: "p"},
-		{Label: "Revert (create revert commit)", Action: ActionRevert, Key: "R"},
-		{Label: "Copy commit hash", Action: ActionCopyHash, Key: "y"},
+		{Label: ui.MenuCherryPick, Action: ActionCherryPick, Key: "p"},
+		{Label: ui.MenuRevert, Action: ActionRevert, Key: "R"},
+		{Label: ui.MenuCopyHash, Action: ActionCopyHash, Key: "y"},
 	}
 	if !isHead {
-		items = append(items, MenuItem{Label: "Drop commit from history", Action: ActionDrop, Key: "d"})
+		items = append(items, MenuItem{Label: ui.MenuDropCommit, Action: ActionDrop, Key: "d"})
 	} else {
-		items = append(items, MenuItem{Label: "Amend commit message", Action: ActionAmend, Key: "a"})
+		items = append(items, MenuItem{Label: ui.MenuAmend, Action: ActionAmend, Key: "a"})
 	}
-	items = append(items, MenuItem{Label: "Squash with next commit", Action: ActionSquash, Key: "s"})
+	items = append(items, MenuItem{Label: ui.MenuSquash, Action: ActionSquash, Key: "s"})
 	return items
 }
 
@@ -123,7 +126,7 @@ func (m ContextMenuModel) View() string {
 		return ""
 	}
 	var sb strings.Builder
-	sb.WriteString(ui.TitleStyle(true).Render("Actions") + "\n\n")
+	sb.WriteString(ui.TitleStyle(true).Render(ui.MenuTitle) + "\n\n")
 	for i, item := range m.items {
 		keyPart := ui.KeyHintStyle.Render("[" + item.Key + "]")
 		labelPart := ui.DescHintStyle.Render(" " + item.Label)

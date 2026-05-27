@@ -241,6 +241,11 @@ func (c *Client) Checkout(ref string) error {
 	return err
 }
 
+func (c *Client) CreateBranch(name string) error {
+	_, err := c.run("checkout", "-b", name)
+	return err
+}
+
 func (c *Client) CheckoutNewTracking(remoteBranch string) error {
 	// e.g. origin/feature/x -> feature/x
 	parts := strings.SplitN(remoteBranch, "/", 2)

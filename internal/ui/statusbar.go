@@ -11,66 +11,73 @@ type HintSet []struct{ Key, Desc string }
 
 func BranchHints(isRemote, isCurrent, hasUpstream bool) HintSet {
 	base := HintSet{
-		{"tab", "next panel"},
-		{"j/k", "navigate"},
-		{"Enter/x", "menu"},
+		{"tab", HintNextPanel},
+		{"j/k", HintNavigate},
+		{"Enter/x", HintMenu},
 	}
 	switch {
 	case isRemote:
-		base = append(base, HintSet{{"c", "checkout"}, {"f", "fetch"}}...)
+		base = append(base, HintSet{{"c", HintCheckout}, {"f", HintFetch}}...)
 	case isCurrent:
-		acts := HintSet{{"m", "merge"}, {"r", "rebase"}, {"p", "push"}}
+		acts := HintSet{{"m", HintMerge}, {"r", HintRebase}, {"p", HintPush}}
 		if hasUpstream {
-			acts = append(acts, struct{ Key, Desc string }{"l", "pull"})
+			acts = append(acts, struct{ Key, Desc string }{"l", HintPull})
 		}
 		base = append(base, acts...)
 	default:
-		acts := HintSet{{"c", "checkout"}, {"m", "merge"}, {"r", "rebase"}, {"p", "push"}}
+		acts := HintSet{{"c", HintCheckout}, {"m", HintMerge}, {"r", HintRebase}, {"p", HintPush}}
 		if hasUpstream {
-			acts = append(acts, struct{ Key, Desc string }{"l", "pull"})
+			acts = append(acts, struct{ Key, Desc string }{"l", HintPull})
 		}
-		acts = append(acts, struct{ Key, Desc string }{"D", "delete"})
+		acts = append(acts, struct{ Key, Desc string }{"D", HintDelete})
 		base = append(base, acts...)
 	}
-	return append(base, HintSet{{"/", "filter"}, {"q", "quit"}}...)
+	return append(base, HintSet{{"/", HintFilter}, {"q", HintQuit}}...)
 }
 
 func CommitHints(isHead, multiSelect bool) HintSet {
 	if multiSelect {
 		return HintSet{
-			{"j/k", "navigate"},
-			{"space", "toggle"},
-			{"Enter", "squash"},
-			{"s", "exit multi-select"},
-			{"q", "quit"},
+			{"j/k", HintNavigate},
+			{"space", HintToggle},
+			{"Enter", HintSquash},
+			{"s", HintExitMultiSelect},
+			{"q", HintQuit},
 		}
 	}
 	base := HintSet{
-		{"tab", "next panel"},
-		{"j/k", "navigate"},
-		{"Enter/x", "menu"},
-		{"p", "cherry-pick"},
-		{"R", "revert"},
+		{"tab", HintNextPanel},
+		{"j/k", HintNavigate},
+		{"Enter/x", HintMenu},
+		{"p", HintCherryPick},
+		{"R", HintRevert},
 	}
 	if isHead {
-		base = append(base, struct{ Key, Desc string }{"a", "amend"})
+		base = append(base, struct{ Key, Desc string }{"a", HintAmend})
 	} else {
-		base = append(base, struct{ Key, Desc string }{"d", "drop"})
+		base = append(base, struct{ Key, Desc string }{"d", HintDrop})
 	}
-	return append(base, HintSet{{"s", "multi-select"}, {"/", "filter"}, {"q", "quit"}}...)
+	return append(base, HintSet{{"s", HintMultiSelect}, {"/", HintFilter}, {"q", HintQuit}}...)
+}
+
+var NewBranchButtonHints = HintSet{
+	{"tab", HintNextPanel},
+	{"j/k", HintNavigate},
+	{"Enter", HintNewBranch},
+	{"q", HintQuit},
 }
 
 var FilterHints = HintSet{
-	{"type", "filter"},
-	{"Enter", "apply"},
-	{"Esc", "clear"},
+	{"type", HintFilter},
+	{"Enter", HintApply},
+	{"Esc", HintClear},
 }
 
 var DetailHints = HintSet{
-	{"tab", "next panel"},
-	{"j/k", "scroll"},
-	{"Esc", "cancel"},
-	{"q", "quit"},
+	{"tab", HintNextPanel},
+	{"j/k", HintScroll},
+	{"Esc", HintCancel},
+	{"q", HintQuit},
 }
 
 func RenderStatusBar(width int, msg string, isErr bool, hints HintSet) string {
@@ -83,9 +90,9 @@ func RenderStatusBar(width int, msg string, isErr bool, hints HintSet) string {
 	msgStyled := ""
 	if msg != "" {
 		if isErr {
-			msgStyled = StatusErrStyle.Render("✗ " + msg)
+			msgStyled = StatusErrStyle.Render(StatusErrPrefix + msg)
 		} else {
-			msgStyled = StatusOKStyle.Render("✓ " + msg)
+			msgStyled = StatusOKStyle.Render(StatusOKPrefix + msg)
 		}
 	}
 

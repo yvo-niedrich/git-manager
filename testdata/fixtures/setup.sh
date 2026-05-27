@@ -1,10 +1,17 @@
 #!/usr/bin/env bash
 # Creates a deterministic fixture git repository.
-# Idempotent — safe to re-run; always produces the same commit hashes.
+# Concurrent-safe: builds in a sibling temp dir on the same filesystem then
+# atomically renames into place. If two test binaries race, one wins; the
+# other discards its work tree and exits cleanly.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO="$SCRIPT_DIR/repo"
+
+# Fast path: already built by an earlier process in this test run.
+if [ -d "$REPO/.git" ]; then
+    exit 0
+fi
 
 # Pinned identity + timestamps → deterministic hashes across machines.
 export GIT_AUTHOR_NAME="Fixture Author"
@@ -12,15 +19,17 @@ export GIT_AUTHOR_EMAIL="fixture@example.com"
 export GIT_COMMITTER_NAME="Fixture Author"
 export GIT_COMMITTER_EMAIL="fixture@example.com"
 
-# ── clean slate ───────────────────────────────────────────────────────────────
-rm -rf "$REPO"
-mkdir -p "$REPO"
-cd "$REPO"
+# Build in a sibling temp dir so we never delete the directory another process
+# may already be sitting inside.
+WORK=$(mktemp -d "$SCRIPT_DIR/.repo.XXXXXX")
+trap 'rm -rf "$WORK"' EXIT
 
-git init
+cd "$WORK"
+
+git init -q
 git symbolic-ref HEAD refs/heads/main
-git config user.email ${GIT_AUTHOR_EMAIL}
-git config user.name ${GIT_AUTHOR_NAME}
+git config user.email "${GIT_AUTHOR_EMAIL}"
+git config user.name "${GIT_AUTHOR_NAME}"
 
 # ── main: three commits ───────────────────────────────────────────────────────
 GIT_AUTHOR_DATE="2000-01-01T00:00:00Z" GIT_COMMITTER_DATE="2000-01-01T00:00:00Z" \
@@ -49,11 +58,15 @@ git update-ref refs/remotes/origin/main HEAD
 git branch --set-upstream-to=origin/main main
 
 # ── feature branch off second commit ─────────────────────────────────────────
-git checkout -b feature/my-feature HEAD~1
+git checkout -q -b feature/my-feature HEAD~1
 echo "feature" > feature.txt
 git add feature.txt
 GIT_AUTHOR_DATE="2000-01-04T00:00:00Z" GIT_COMMITTER_DATE="2000-01-04T00:00:00Z" \
   git commit -m "add feature.txt"
 
 # ── back to main ─────────────────────────────────────────────────────────────
-git checkout main
+git checkout -q main
+
+# Atomic rename into place. If another process already won the race, discard
+# our work tree and exit cleanly — the repo is already there.
+mv "$WORK" "$REPO" 2>/dev/null && trap - EXIT || true

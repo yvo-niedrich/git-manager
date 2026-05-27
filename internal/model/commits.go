@@ -31,7 +31,7 @@ type CommitSelectedMsg struct{ Commit git.Commit }
 
 func NewCommitsModel() CommitsModel {
 	ti := textinput.New()
-	ti.Placeholder = "hash, message, author..."
+	ti.Placeholder = ui.PlaceholderCommits
 	ti.CharLimit = 64
 	ti.Prompt = "/ "
 	ti.PromptStyle = ui.DimItemStyle
@@ -213,12 +213,12 @@ func (m CommitsModel) selectionCmd() tea.Cmd {
 }
 
 func (m CommitsModel) View() string {
-	title := ui.TitleStyle(m.focused).Render("Commits")
+	title := ui.TitleStyle(m.focused).Render(ui.TitleCommits)
 	if m.branchRef != "" {
 		title += ui.DimItemStyle.Render("  " + m.branchRef)
 	}
 	if m.multiSelect {
-		title += ui.HeadStyle.Render("  [multi-select: space=toggle, Enter=squash]")
+		title += ui.HeadStyle.Render(ui.MultiSelectHintLabel)
 	}
 
 	innerW := ui.InnerWidth(m.width)
@@ -232,9 +232,9 @@ func (m CommitsModel) View() string {
 	case m.filterActive:
 		filterLine = "  " + m.filterInput.View()
 	case m.filterInput.Value() != "":
-		filterLine = ui.KeyHintStyle.Render("  ~") + " " + ui.NormalItemStyle.Render(m.filterInput.Value())
+		filterLine = ui.KeyHintStyle.Render(ui.FilterActiveMark) + " " + ui.NormalItemStyle.Render(m.filterInput.Value())
 	default:
-		filterLine = ui.DimItemStyle.Render("  / filter")
+		filterLine = ui.DimItemStyle.Render(ui.FilterPrompt)
 	}
 	separator := ui.DimItemStyle.Render(strings.Repeat("─", innerW))
 

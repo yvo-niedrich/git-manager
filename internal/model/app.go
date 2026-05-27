@@ -163,7 +163,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case loadCommitsMsg:
 		if msg.err != nil {
-			return a, a.setStatus("load commits: "+msg.err.Error(), true)
+			return a, a.setStatus(fmt.Sprintf(ui.ErrLoadCommitsFmt, msg.err.Error()), true)
 		}
 		a.commits.SetCommits(msg.commits)
 		a.commits.branchRef = msg.ref
@@ -174,7 +174,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case loadDetailMsg:
 		if msg.err != nil {
-			return a, a.setStatus("load detail: "+msg.err.Error(), true)
+			return a, a.setStatus(fmt.Sprintf(ui.ErrLoadDetailFmt, msg.err.Error()), true)
 		}
 		a.detail.SetCommit(msg.detail)
 		return a, nil
@@ -198,6 +198,12 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case AmendSubmitMsg:
 		return a, a.runWorkflow(func() git.WorkflowResult {
 			return a.wf.AmendLast(msg.NewMessage)
+		})
+
+	case NewBranchSubmitMsg:
+		name := msg.Name
+		return a, a.runWorkflow(func() git.WorkflowResult {
+			return a.wf.CreateBranch(name)
 		})
 	}
 
@@ -254,12 +260,16 @@ func (a *App) renderStatusBar() string {
 	var hints ui.HintSet
 	switch a.focus {
 	case panelBranches:
-		isRemote, isCurrent, hasUpstream := false, false, false
-		if sel := a.branches.Selected(); sel != nil {
-			isRemote, isCurrent = sel.IsRemote, sel.IsCurrent
-			hasUpstream = !sel.IsRemote && sel.Upstream != ""
+		if a.branches.IsNewBranchSelected() {
+			hints = ui.NewBranchButtonHints
+		} else {
+			isRemote, isCurrent, hasUpstream := false, false, false
+			if sel := a.branches.Selected(); sel != nil {
+				isRemote, isCurrent = sel.IsRemote, sel.IsCurrent
+				hasUpstream = !sel.IsRemote && sel.Upstream != ""
+			}
+			hints = ui.BranchHints(isRemote, isCurrent, hasUpstream)
 		}
-		hints = ui.BranchHints(isRemote, isCurrent, hasUpstream)
 	case panelCommits:
 		isHead := false
 		if sel := a.commits.Selected(); sel != nil {
@@ -317,6 +327,10 @@ func (a *App) openContextMenu() tea.Cmd {
 	var items []MenuItem
 	switch a.focus {
 	case panelBranches:
+		if a.branches.IsNewBranchSelected() {
+			a.dialogs.Push(NewBranchDialog(a.client.CurrentBranch(), a.branches.LocalNames()))
+			return nil
+		}
 		sel := a.branches.Selected()
 		if sel == nil {
 			return nil
@@ -397,8 +411,9 @@ func (a *App) handleMenuAction(action MenuAction) tea.Cmd {
 	case ActionDeleteBranch:
 		if sel := a.branches.Selected(); sel != nil {
 			branch := sel.Name
-			a.dialogs.Push(NewConfirmDialog(
-				fmt.Sprintf("Delete branch %q?", branch),
+			a.dialogs.Push(NewConfirmDialogWithSubject(
+				ui.ConfirmDeleteBranch,
+				branch,
 				func() tea.Cmd {
 					return a.runWorkflow(func() git.WorkflowResult { return a.wf.DeleteBranch(branch, false) })
 				},
@@ -413,7 +428,7 @@ func (a *App) handleMenuAction(action MenuAction) tea.Cmd {
 		if sel := a.branches.Selected(); sel != nil {
 			branch := sel.Name
 			a.dialogs.Push(NewConfirmDialog(
-				fmt.Sprintf("Force-push %q to origin? This overwrites remote history.", branch),
+				fmt.Sprintf(ui.ConfirmForcePushFmt, branch),
 				func() tea.Cmd {
 					return a.runWorkflow(func() git.WorkflowResult { return a.wf.ForcePush("origin", branch) })
 				},
@@ -441,7 +456,7 @@ func (a *App) handleMenuAction(action MenuAction) tea.Cmd {
 			hash := sel.Hash
 			short := sel.ShortHash
 			a.dialogs.Push(NewConfirmDialog(
-				fmt.Sprintf("Drop commit %s from history?", short),
+				fmt.Sprintf(ui.ConfirmDropCommitFmt, short),
 				func() tea.Cmd {
 					return a.runWorkflow(func() git.WorkflowResult { return a.wf.DropCommit(hash) })
 				},
@@ -454,7 +469,7 @@ func (a *App) handleMenuAction(action MenuAction) tea.Cmd {
 	case ActionSquash:
 		hashes := a.commits.SelectedHashes()
 		if len(hashes) < 2 {
-			return a.setStatus("select at least 2 commits with [s] then [space]", true)
+			return a.setStatus(ui.ErrSquashTooFew, true)
 		}
 		return a.runWorkflow(func() git.WorkflowResult { return a.wf.SquashCommits(hashes) })
 	case ActionCopyHash:

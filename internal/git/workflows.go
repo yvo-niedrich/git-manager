@@ -43,6 +43,14 @@ func (w *Workflows) stashAround(label string, fn func() error) WorkflowResult {
 	return WorkflowResult{Message: label + " complete" + msg}
 }
 
+func (w *Workflows) CreateBranch(name string) WorkflowResult {
+	err := w.c.CreateBranch(name)
+	if err != nil {
+		return WorkflowResult{Err: fmt.Errorf("create branch %q: %w", name, err)}
+	}
+	return WorkflowResult{Message: "created branch " + name}
+}
+
 func (w *Workflows) SwitchBranch(branch string) WorkflowResult {
 	return w.stashAround("switch to "+branch, func() error {
 		return w.c.Checkout(branch)

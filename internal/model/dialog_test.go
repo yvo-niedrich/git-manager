@@ -149,6 +149,44 @@ func TestContextMenu_CursorNavigation(t *testing.T) {
 	}
 }
 
+// ── BranchMenuItems ───────────────────────────────────────────────────────────
+
+func hasAction(items []MenuItem, action MenuAction) bool {
+	for _, it := range items {
+		if it.Action == action {
+			return true
+		}
+	}
+	return false
+}
+
+func TestBranchMenuItems_CurrentBranchExcludesMergeRebaseCheckoutDelete(t *testing.T) {
+	items := BranchMenuItems(false, true, "")
+	for _, banned := range []MenuAction{ActionCheckout, ActionMerge, ActionRebase, ActionDeleteBranch} {
+		if hasAction(items, banned) {
+			t.Errorf("current-branch menu should not contain action %v", banned)
+		}
+	}
+}
+
+func TestBranchMenuItems_NonCurrentBranchIncludesMergeRebaseDelete(t *testing.T) {
+	items := BranchMenuItems(false, false, "")
+	for _, want := range []MenuAction{ActionCheckout, ActionMerge, ActionRebase, ActionDeleteBranch} {
+		if !hasAction(items, want) {
+			t.Errorf("non-current-branch menu should contain action %v", want)
+		}
+	}
+}
+
+func TestBranchMenuItems_CurrentBranchRetainsPushForcePush(t *testing.T) {
+	items := BranchMenuItems(false, true, "")
+	for _, want := range []MenuAction{ActionPush, ActionForcePush} {
+		if !hasAction(items, want) {
+			t.Errorf("current-branch menu should contain action %v", want)
+		}
+	}
+}
+
 // ── ConfirmModel ──────────────────────────────────────────────────────────────
 
 func TestConfirmModel_YesCallsFn(t *testing.T) {
@@ -209,6 +247,86 @@ func TestConfirmModel_EscDoesNotCallFn(t *testing.T) {
 	m.DialogUpdate(press("esc"))
 	if called {
 		t.Error("confirmFn should not be called on esc")
+	}
+}
+
+// ── AmendModel ────────────────────────────────────────────────────────────────
+
+func TestConfirmModelWithSubject_YesCallsFn(t *testing.T) {
+	called := false
+	m := NewConfirmDialogWithSubject("Delete branch?", "feature/x", func() tea.Cmd {
+		called = true
+		return nil
+	})
+	m.DialogUpdate(press("y"))
+	if !called {
+		t.Error("confirmFn was not called on y")
+	}
+}
+
+// ── NewBranchModel ────────────────────────────────────────────────────────────
+
+func TestNewBranchModel_EscCloses(t *testing.T) {
+	m := NewBranchDialog("main", nil)
+	next, cmd := m.DialogUpdate(press("esc"))
+	if next != nil {
+		t.Error("esc: expected nil content (close signal)")
+	}
+	if cmd != nil {
+		t.Error("esc: expected nil cmd")
+	}
+}
+
+func TestNewBranchModel_EmptyNameShowsError(t *testing.T) {
+	m := NewBranchDialog("main", nil)
+	next, cmd := m.DialogUpdate(press("enter"))
+	if next == nil {
+		t.Fatal("enter with empty name: dialog should stay open")
+	}
+	if cmd != nil {
+		t.Error("enter with empty name: expected nil cmd")
+	}
+	nb, ok := next.(*NewBranchModel)
+	if !ok {
+		t.Fatalf("next = %T, want *NewBranchModel", next)
+	}
+	if nb.errMsg == "" {
+		t.Error("errMsg should be set after empty-name submit")
+	}
+}
+
+func TestNewBranchModel_DuplicateNameShowsError(t *testing.T) {
+	var dc DialogContent = NewBranchDialog("main", []string{"main", "feature/a"})
+	for _, ch := range "main" {
+		dc, _ = dc.DialogUpdate(press(string(ch)))
+	}
+	dc, _ = dc.DialogUpdate(press("enter"))
+	nb, ok := dc.(*NewBranchModel)
+	if !ok {
+		t.Fatalf("dialog should stay open on duplicate, got %T", dc)
+	}
+	if nb.errMsg == "" {
+		t.Error("errMsg should be set for duplicate branch name")
+	}
+}
+
+func TestNewBranchModel_ValidNameEmitsSubmit(t *testing.T) {
+	m := NewBranchDialog("main", []string{"main"})
+	var dc DialogContent = m
+	for _, ch := range "new-feature" {
+		dc, _ = dc.DialogUpdate(press(string(ch)))
+	}
+	next, cmd := dc.DialogUpdate(press("enter"))
+	if next != nil {
+		t.Error("enter with valid name: dialog should close (nil content)")
+	}
+	msg := cmdMsg(cmd)
+	submit, ok := msg.(NewBranchSubmitMsg)
+	if !ok {
+		t.Fatalf("expected NewBranchSubmitMsg, got %T", msg)
+	}
+	if submit.Name != "new-feature" {
+		t.Errorf("Name = %q, want %q", submit.Name, "new-feature")
 	}
 }
 

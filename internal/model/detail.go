@@ -49,20 +49,20 @@ func (m DetailModel) Update(msg tea.Msg) (DetailModel, tea.Cmd) {
 }
 
 func (m DetailModel) View() string {
-	title := ui.TitleStyle(m.focused).Render("Detail")
+	title := ui.TitleStyle(m.focused).Render(ui.TitleDetail)
 	inner := title + "\n" + m.vp.View()
 	return ui.PanelStyle(m.focused).Width(m.width).Height(m.height).Render(inner)
 }
 
 func (m DetailModel) renderCommit(c git.CommitDetail) string {
 	var sb strings.Builder
-	sb.WriteString(ui.HeadStyle.Render("commit "+c.Hash[:min(12, len(c.Hash))]) + "\n")
-	sb.WriteString(ui.DimItemStyle.Render("Author: "+c.Author) + "\n")
+	sb.WriteString(ui.HeadStyle.Render(ui.DetailLabelCommit+c.Hash[:min(12, len(c.Hash))]) + "\n")
+	sb.WriteString(ui.DimItemStyle.Render(ui.DetailLabelAuthor+c.Author) + "\n")
 	if !c.Date.IsZero() {
-		sb.WriteString(ui.DimItemStyle.Render("Date:   "+c.Date.Format(time.RFC1123)) + "\n")
+		sb.WriteString(ui.DimItemStyle.Render(ui.DetailLabelDate+c.Date.Format(time.RFC1123)) + "\n")
 	}
 	if len(c.Tags) > 0 {
-		sb.WriteString(ui.TagStyle.Render("Tags:   "+strings.Join(c.Tags, ", ")) + "\n")
+		sb.WriteString(ui.TagStyle.Render(ui.DetailLabelTags+strings.Join(c.Tags, ", ")) + "\n")
 	}
 	sb.WriteString("\n")
 	if c.Subject != "" {
@@ -75,7 +75,7 @@ func (m DetailModel) renderCommit(c git.CommitDetail) string {
 		}
 	}
 	if len(c.StatLines) > 0 {
-		sb.WriteString("\n" + ui.SectionStyle.Render("Changed files:") + "\n")
+		sb.WriteString("\n" + ui.SectionStyle.Render(ui.DetailLabelFiles) + "\n")
 		for _, l := range c.StatLines {
 			sb.WriteString(ui.DimItemStyle.Render("  "+l) + "\n")
 		}
