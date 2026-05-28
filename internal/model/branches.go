@@ -14,6 +14,7 @@ import (
 
 type BranchesModel struct {
 	branches     []git.Branch
+	prs          map[string]int
 	cursor       int
 	offset       int
 	width        int
@@ -41,6 +42,10 @@ func (m *BranchesModel) SetSize(w, h int) {
 	m.width = w
 	m.height = h
 	m.filterInput.Width = ui.InnerWidth(w) - 4
+}
+
+func (m *BranchesModel) SetPRs(prs map[string]int) {
+	m.prs = prs
 }
 
 func (m *BranchesModel) SetBranches(branches []git.Branch) {
@@ -335,26 +340,58 @@ func (m BranchesModel) View() string {
 			}
 			text = fmt.Sprintf("%s%s", prefix, label)
 		}
+
+		prBadge := ""
+		if !b.IsRemote {
+			if n, ok := m.prs[b.Name]; ok {
+				prBadge = fmt.Sprintf("#%d", n)
+			}
+		}
+
 		if vi == m.cursor {
 			namePrefix := indent
 			if b.IsCurrent {
 				namePrefix = ui.MarkerCurrentBranch
 			}
+			namePart := ui.SelectedItemStyle.Render(namePrefix + b.Name)
+
+			hintStr := ""
 			if !b.IsRemote && b.Upstream != "" {
-				arrow := ui.MarkerUpstreamArrow + b.Upstream
-				namePart := ui.SelectedItemStyle.Render(namePrefix + b.Name)
-				hintPart := ui.SelectedItemDimStyle.Render(arrow)
-				combined := namePart + hintPart
-				combinedW := lipgloss.Width(combined)
+				hintStr = ui.MarkerUpstreamArrow + b.Upstream
+			}
+			prStr := ""
+			if prBadge != "" {
+				prStr = " " + prBadge
+			}
+
+			hintPart := ui.SelectedItemDimStyle.Render(hintStr)
+			prPart := ui.SelectedPRBadgeStyle.Render(prStr)
+			combined := namePart + hintPart + prPart
+			combinedW := lipgloss.Width(combined)
+			if combinedW <= innerW {
+				pad := ui.SelectedItemDimStyle.Render(strings.Repeat(" ", innerW-combinedW))
+				text = combined + pad
+			} else if prStr != "" {
+				// retry 1: name + upstream (no badge)
+				combined = namePart + hintPart
+				combinedW = lipgloss.Width(combined)
 				if combinedW <= innerW {
 					pad := ui.SelectedItemDimStyle.Render(strings.Repeat(" ", innerW-combinedW))
 					text = combined + pad
 				} else {
-					plain := namePrefix + b.Name
-					if len(plain) > innerW {
-						plain = plain[:innerW]
+					// retry 2: name + badge (no upstream)
+					nameW := lipgloss.Width(namePart)
+					prW := lipgloss.Width(prPart)
+					if nameW+prW <= innerW {
+						pad := ui.SelectedItemDimStyle.Render(strings.Repeat(" ", innerW-nameW-prW))
+						text = namePart + prPart + pad
+					} else {
+						plain := namePrefix + b.Name
+						if len(plain) > innerW {
+							plain = plain[:innerW]
+						}
+						text = ui.SelectedItemStyle.Width(innerW).Render(plain)
 					}
-					text = ui.SelectedItemStyle.Width(innerW).Render(plain)
 				}
 			} else {
 				plain := namePrefix + b.Name
@@ -362,6 +399,13 @@ func (m BranchesModel) View() string {
 					plain = plain[:innerW]
 				}
 				text = ui.SelectedItemStyle.Width(innerW).Render(plain)
+			}
+		} else if prBadge != "" {
+			textW := lipgloss.Width(text)
+			badgeW := len(prBadge)
+			if textW+1+badgeW <= innerW {
+				pad := strings.Repeat(" ", innerW-textW-1-badgeW)
+				text = text + pad + " " + ui.PRBadgeStyle.Render(prBadge)
 			}
 		}
 		lines = append(lines, text)

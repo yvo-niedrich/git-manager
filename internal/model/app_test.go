@@ -158,6 +158,39 @@ func TestApp_MenuSelectedDispatchesAction(t *testing.T) {
 	}
 }
 
+func TestApp_MergeActionOpensBranchPicker(t *testing.T) {
+	a := fixtureApp(t)
+	// Select a non-current branch first.
+	branches, _ := a.client.ListBranches()
+	var nonCurrent *git.Branch
+	for i := range branches {
+		if !branches[i].IsRemote && !branches[i].IsCurrent {
+			nonCurrent = &branches[i]
+			break
+		}
+	}
+	if nonCurrent == nil {
+		t.Skip("no non-current local branch in fixture")
+	}
+	a.branches.SetBranches(branches)
+	// Move cursor to the non-current branch.
+	for !a.branches.IsNewBranchSelected() {
+		if sel := a.branches.Selected(); sel != nil && sel.Name == nonCurrent.Name {
+			break
+		}
+		a.branches, _ = a.branches.Update(press("j"))
+	}
+
+	a.Update(MenuSelectedMsg{Action: ActionMerge})
+
+	if !a.dialogs.IsOpen() {
+		t.Fatal("expected branch picker dialog to open for ActionMerge")
+	}
+	if _, ok := a.dialogs.Active().(*BranchPickerModel); !ok {
+		t.Errorf("Active() = %T, want *BranchPickerModel", a.dialogs.Active())
+	}
+}
+
 func TestApp_MenuActionConfirmPushesDialog(t *testing.T) {
 	a := fixtureApp(t)
 	// ActionForcePush for a branch pushes a ConfirmModel onto the dialog stack.

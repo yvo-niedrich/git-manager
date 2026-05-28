@@ -25,6 +25,15 @@ const (
 	NewBranchButtonLabel = "» new branch"
 )
 
+// ── Branch picker dialog ───────────────────────────────────────────────────────
+
+const (
+	BranchPickerMergeFmt          = "Merge %s into:"
+	BranchPickerRebaseFmt         = "Rebase %s onto:"
+	BranchPickerEmpty             = "(no matches)"
+	BranchPickerFilterPlaceholder = "filter branches..."
+)
+
 // ── Commits panel ─────────────────────────────────────────────────────────────
 
 const (
@@ -49,8 +58,8 @@ const (
 	MenuCheckoutRemote = "Checkout (create local tracking)"
 	MenuFetchRemote    = "Fetch remote"
 	MenuCheckout       = "Checkout"
-	MenuMerge          = "Merge into current branch"
-	MenuRebase         = "Rebase current onto this"
+	MenuMerge          = "Merge into …"
+	MenuRebase         = "Rebase onto …"
 	MenuPush           = "Push to remote"
 	MenuForcePush      = "Force-push to remote"
 	MenuPullFromFmt    = "Pull from %s"

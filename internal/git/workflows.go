@@ -63,15 +63,57 @@ func (w *Workflows) CheckoutRemote(remoteBranch string) WorkflowResult {
 	})
 }
 
-func (w *Workflows) MergeInto(branch string) WorkflowResult {
-	return w.stashAround("merge "+branch, func() error {
-		return w.c.Merge(branch)
+// MergeInto merges source into target. The operation is always stash-aware:
+// uncommitted changes are stashed, the operation runs, then the stash is
+// restored on the original branch.
+func (w *Workflows) MergeInto(source, target string) WorkflowResult {
+	original := w.c.CurrentBranch()
+	label := fmt.Sprintf("merge %s into %s", source, target)
+
+	return w.stashAround(label, func() error {
+		if original != target {
+			if err := w.c.Checkout(target); err != nil {
+				return fmt.Errorf("checkout %s: %w", target, err)
+			}
+		}
+		mergeErr := w.c.Merge(source)
+		if mergeErr != nil {
+			w.c.run("merge", "--abort") //nolint — best-effort cleanup
+		}
+		if original != target {
+			// Return to original so AutoUnstash pops the stash on the right branch.
+			if err := w.c.Checkout(original); err != nil && mergeErr == nil {
+				return fmt.Errorf("checkout %s: %w", original, err)
+			}
+		}
+		return mergeErr
 	})
 }
 
-func (w *Workflows) RebaseOnto(branch string) WorkflowResult {
-	return w.stashAround("rebase onto "+branch, func() error {
-		return w.c.Rebase(branch)
+// RebaseOnto rebases source onto onto. The operation is always stash-aware:
+// uncommitted changes are stashed, the operation runs, then the stash is
+// restored on the original branch.
+func (w *Workflows) RebaseOnto(source, onto string) WorkflowResult {
+	original := w.c.CurrentBranch()
+	label := fmt.Sprintf("rebase %s onto %s", source, onto)
+
+	return w.stashAround(label, func() error {
+		if original != source {
+			if err := w.c.Checkout(source); err != nil {
+				return fmt.Errorf("checkout %s: %w", source, err)
+			}
+		}
+		rebaseErr := w.c.Rebase(onto)
+		if rebaseErr != nil {
+			w.c.run("rebase", "--abort") //nolint — best-effort cleanup
+		}
+		if original != source {
+			// Return to original so AutoUnstash pops the stash on the right branch.
+			if err := w.c.Checkout(original); err != nil && rebaseErr == nil {
+				return fmt.Errorf("checkout %s: %w", original, err)
+			}
+		}
+		return rebaseErr
 	})
 }
 

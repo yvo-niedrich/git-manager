@@ -60,6 +60,9 @@ var (
 	KeyHintStyle  = lipgloss.NewStyle().Foreground(ColorAccent).Bold(true)
 	DescHintStyle = lipgloss.NewStyle().Foreground(ColorSubtle)
 
+	PRBadgeStyle         = lipgloss.NewStyle().Foreground(ColorSuccess)
+	SelectedPRBadgeStyle = lipgloss.NewStyle().Background(ColorSelected).Foreground(ColorSuccess)
+
 	MenuBorderStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(ColorAccent).

@@ -6,6 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `gitwise` is a terminal-based git manager — a 3-panel TUI (Branches / Commits / Detail) that wraps the local `git` binary. It does not embed git or manage credentials. The module name is `github.com/user/gitwise`.
 
+## Core design principle
+
+**The user should never have to think about uncommitted changes before triggering an operation.**
+
+Every workflow operation that modifies `HEAD` or the working tree automatically stashes uncommitted changes beforehand and restores them afterward. The status bar notes when a stash was involved. The user triggers the action; the tool handles the rest.
+
+The one deliberate exception is operations whose *purpose* is to interact with uncommitted changes — `amend` and any future commit-style operations. Stashing before those would undo exactly what the user intends.
+
 ## Commands
 
 ```bash

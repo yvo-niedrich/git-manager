@@ -44,6 +44,8 @@ type refreshBranchesMsg struct {
 	err      error
 }
 
+type prLoadedMsg struct{ prs map[string]int }
+
 type App struct {
 	branches    BranchesModel
 	commits     CommitsModel
@@ -55,6 +57,7 @@ type App struct {
 	repoRoot    string
 	termW       int
 	termH       int
+	prs         map[string]int
 	statusMsg   string
 	statusIsErr bool
 	statusGen   int
@@ -102,7 +105,7 @@ func NewApp(repoRoot string) (*App, error) {
 
 func (a *App) Init() tea.Cmd {
 	title := filepath.Base(os.Args[0]) + ": " + filepath.Base(a.repoRoot)
-	return tea.SetWindowTitle(title)
+	return tea.Batch(tea.SetWindowTitle(title), a.loadPRsCmd())
 }
 
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -182,6 +185,25 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case refreshBranchesMsg:
 		if msg.err == nil {
 			a.branches.SetBranches(msg.branches)
+		}
+		return a, nil
+
+	case prLoadedMsg:
+		a.prs = msg.prs
+		a.branches.SetPRs(msg.prs)
+		return a, nil
+
+	case BranchPickerSubmitMsg:
+		source, target := msg.Source, msg.Target
+		switch msg.Action {
+		case ActionMerge:
+			return a, a.runWorkflow(func() git.WorkflowResult {
+				return a.wf.MergeInto(source, target)
+			})
+		case ActionRebase:
+			return a, a.runWorkflow(func() git.WorkflowResult {
+				return a.wf.RebaseOnto(source, target)
+			})
 		}
 		return a, nil
 
@@ -400,13 +422,15 @@ func (a *App) handleMenuAction(action MenuAction) tea.Cmd {
 		}
 	case ActionMerge:
 		if sel := a.branches.Selected(); sel != nil {
-			branch := sel.Name
-			return a.runWorkflow(func() git.WorkflowResult { return a.wf.MergeInto(branch) })
+			a.dialogs.Push(NewBranchPickerDialog(
+				ActionMerge, sel.Name, a.client.CurrentBranch(), a.branches.LocalNames(), a.termH,
+			))
 		}
 	case ActionRebase:
 		if sel := a.branches.Selected(); sel != nil {
-			branch := sel.Name
-			return a.runWorkflow(func() git.WorkflowResult { return a.wf.RebaseOnto(branch) })
+			a.dialogs.Push(NewBranchPickerDialog(
+				ActionRebase, sel.Name, a.client.CurrentBranch(), a.branches.LocalNames(), a.termH,
+			))
 		}
 	case ActionDeleteBranch:
 		if sel := a.branches.Selected(); sel != nil {
@@ -503,6 +527,13 @@ func (a *App) loadCommitsCmd(ref string) tea.Cmd {
 	return func() tea.Msg {
 		commits, err := client.ListCommits(ref, 200)
 		return loadCommitsMsg{ref: ref, commits: commits, err: err}
+	}
+}
+
+func (a *App) loadPRsCmd() tea.Cmd {
+	client := a.client
+	return func() tea.Msg {
+		return prLoadedMsg{prs: client.ListOpenPRs()}
 	}
 }
 

@@ -376,3 +376,152 @@ func TestAmendModel_IgnoresUnknownKeys(t *testing.T) {
 		t.Error("tab should not close the amend dialog")
 	}
 }
+
+// ── BranchPickerModel ─────────────────────────────────────────────────────────
+
+func newTestPicker(action MenuAction) *BranchPickerModel {
+	localNames := []string{"main", "develop", "feature/a", "feature/b", "release/v1.0"}
+	return NewBranchPickerDialog(action, "feature/a", "main", localNames, 40)
+}
+
+func TestBranchPicker_ExcludesSourceAndCurrent(t *testing.T) {
+	m := newTestPicker(ActionMerge)
+	for _, name := range m.branches {
+		if name == "feature/a" {
+			t.Error("source branch 'feature/a' should be excluded")
+		}
+		if name == "main" {
+			t.Error("current branch 'main' should be excluded")
+		}
+	}
+}
+
+func TestBranchPicker_DefaultsToPreferredBranch(t *testing.T) {
+	// "develop" is in defaultTargetBranches and is present in the list.
+	m := newTestPicker(ActionMerge)
+	if m.branches[m.cursor] != "develop" {
+		t.Errorf("cursor branch = %q, want %q", m.branches[m.cursor], "develop")
+	}
+}
+
+func TestBranchPicker_EscWithFilterClearsFilterOnly(t *testing.T) {
+	m := newTestPicker(ActionMerge)
+	// Type something into the filter.
+	for _, ch := range "feat" {
+		m.DialogUpdate(press(string(ch)))
+	}
+	// Esc should clear the filter but keep the dialog open.
+	next, cmd := m.DialogUpdate(press("esc"))
+	if next == nil {
+		t.Fatal("esc with active filter should keep dialog open")
+	}
+	if cmd != nil {
+		t.Error("expected nil cmd when clearing filter")
+	}
+	picker := next.(*BranchPickerModel)
+	if picker.filter.Value() != "" {
+		t.Errorf("filter value = %q after esc, want empty", picker.filter.Value())
+	}
+}
+
+func TestBranchPicker_EscWithEmptyFilterCloses(t *testing.T) {
+	m := newTestPicker(ActionMerge)
+	next, cmd := m.DialogUpdate(press("esc"))
+	if next != nil {
+		t.Error("esc with empty filter should close dialog (nil content)")
+	}
+	if cmd != nil {
+		t.Error("expected nil cmd on cancel")
+	}
+}
+
+func TestBranchPicker_EnterEmitsSubmit(t *testing.T) {
+	m := newTestPicker(ActionMerge)
+	// Move to first item (develop).
+	next, cmd := m.DialogUpdate(press("enter"))
+	if next != nil {
+		t.Error("enter should close the picker dialog")
+	}
+	msg := cmdMsg(cmd)
+	sub, ok := msg.(BranchPickerSubmitMsg)
+	if !ok {
+		t.Fatalf("expected BranchPickerSubmitMsg, got %T", msg)
+	}
+	if sub.Action != ActionMerge {
+		t.Errorf("Action = %v, want ActionMerge", sub.Action)
+	}
+	if sub.Source != "feature/a" {
+		t.Errorf("Source = %q, want %q", sub.Source, "feature/a")
+	}
+	if sub.Target != "develop" {
+		t.Errorf("Target = %q, want %q", sub.Target, "develop")
+	}
+}
+
+func TestBranchPicker_UpDownNavigation(t *testing.T) {
+	m := newTestPicker(ActionMerge)
+	// cursor starts at "develop" (index 0 in the filtered list).
+	startCursor := m.cursor
+
+	next, _ := m.DialogUpdate(press("down"))
+	m = next.(*BranchPickerModel)
+	if m.cursor != startCursor+1 {
+		t.Errorf("cursor after down = %d, want %d", m.cursor, startCursor+1)
+	}
+
+	next, _ = m.DialogUpdate(press("up"))
+	m = next.(*BranchPickerModel)
+	if m.cursor != startCursor {
+		t.Errorf("cursor after up = %d, want %d", m.cursor, startCursor)
+	}
+}
+
+func TestBranchPicker_UpDoesNotGoNegative(t *testing.T) {
+	m := newTestPicker(ActionMerge)
+	m.cursor = 0
+	next, _ := m.DialogUpdate(press("up"))
+	if next.(*BranchPickerModel).cursor != 0 {
+		t.Error("cursor should not go below 0")
+	}
+}
+
+func TestBranchPicker_FilterNarrowsList(t *testing.T) {
+	m := newTestPicker(ActionMerge)
+	// Type "feat" — should match "feature/b" only (feature/a is excluded).
+	for _, ch := range "feat" {
+		next, _ := m.DialogUpdate(press(string(ch)))
+		m = next.(*BranchPickerModel)
+	}
+	filtered := m.filteredBranches()
+	if len(filtered) != 1 || filtered[0] != "feature/b" {
+		t.Errorf("filtered = %v, want [feature/b]", filtered)
+	}
+}
+
+func TestBranchPicker_FilterResetsCursor(t *testing.T) {
+	m := newTestPicker(ActionMerge)
+	m.cursor = 2
+	next, _ := m.DialogUpdate(press("f"))
+	m = next.(*BranchPickerModel)
+	if m.cursor != 0 {
+		t.Errorf("cursor after filter change = %d, want 0", m.cursor)
+	}
+}
+
+func TestBranchPicker_EnterOnEmptyFilteredListIsNoop(t *testing.T) {
+	m := newTestPicker(ActionMerge)
+	for _, ch := range "zzz" {
+		next, _ := m.DialogUpdate(press(string(ch)))
+		m = next.(*BranchPickerModel)
+	}
+	if len(m.filteredBranches()) != 0 {
+		t.Skip("expected empty filtered list")
+	}
+	next, cmd := m.DialogUpdate(press("enter"))
+	if next == nil {
+		t.Error("enter on empty list should keep dialog open")
+	}
+	if cmd != nil {
+		t.Error("expected nil cmd on enter with empty list")
+	}
+}
