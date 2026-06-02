@@ -384,23 +384,20 @@ func newTestPicker(action MenuAction) *BranchPickerModel {
 	return NewBranchPickerDialog(action, "feature/a", "main", localNames, 40)
 }
 
-func TestBranchPicker_ExcludesSourceAndCurrent(t *testing.T) {
+func TestBranchPicker_ExcludesSource(t *testing.T) {
 	m := newTestPicker(ActionMerge)
 	for _, name := range m.branches {
 		if name == "feature/a" {
 			t.Error("source branch 'feature/a' should be excluded")
 		}
-		if name == "main" {
-			t.Error("current branch 'main' should be excluded")
-		}
 	}
 }
 
-func TestBranchPicker_DefaultsToPreferredBranch(t *testing.T) {
-	// "develop" is in defaultTargetBranches and is present in the list.
+func TestBranchPicker_DefaultsToCurrentBranch(t *testing.T) {
+	// current="main" is in the list and should be pre-selected.
 	m := newTestPicker(ActionMerge)
-	if m.branches[m.cursor] != "develop" {
-		t.Errorf("cursor branch = %q, want %q", m.branches[m.cursor], "develop")
+	if m.branches[m.cursor] != "main" {
+		t.Errorf("cursor branch = %q, want %q", m.branches[m.cursor], "main")
 	}
 }
 
@@ -437,7 +434,7 @@ func TestBranchPicker_EscWithEmptyFilterCloses(t *testing.T) {
 
 func TestBranchPicker_EnterEmitsSubmit(t *testing.T) {
 	m := newTestPicker(ActionMerge)
-	// Move to first item (develop).
+	// cursor starts at "main" (current branch, pre-selected).
 	next, cmd := m.DialogUpdate(press("enter"))
 	if next != nil {
 		t.Error("enter should close the picker dialog")
@@ -453,14 +450,14 @@ func TestBranchPicker_EnterEmitsSubmit(t *testing.T) {
 	if sub.Source != "feature/a" {
 		t.Errorf("Source = %q, want %q", sub.Source, "feature/a")
 	}
-	if sub.Target != "develop" {
-		t.Errorf("Target = %q, want %q", sub.Target, "develop")
+	if sub.Target != "main" {
+		t.Errorf("Target = %q, want %q", sub.Target, "main")
 	}
 }
 
 func TestBranchPicker_UpDownNavigation(t *testing.T) {
 	m := newTestPicker(ActionMerge)
-	// cursor starts at "develop" (index 0 in the filtered list).
+	// cursor starts at "main" (current branch, pre-selected).
 	startCursor := m.cursor
 
 	next, _ := m.DialogUpdate(press("down"))

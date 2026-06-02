@@ -23,6 +23,7 @@ func BranchHints(isRemote, isCurrent, hasUpstream bool) HintSet {
 		if hasUpstream {
 			acts = append(acts, struct{ Key, Desc string }{"l", HintPull})
 		}
+		acts = append(acts, struct{ Key, Desc string }{"n", HintNewBranch})
 		base = append(base, acts...)
 	default:
 		acts := HintSet{{"c", HintCheckout}, {"m", HintMerge}, {"r", HintRebase}, {"p", HintPush}}
@@ -30,6 +31,7 @@ func BranchHints(isRemote, isCurrent, hasUpstream bool) HintSet {
 			acts = append(acts, struct{ Key, Desc string }{"l", HintPull})
 		}
 		acts = append(acts, struct{ Key, Desc string }{"D", HintDelete})
+		acts = append(acts, struct{ Key, Desc string }{"n", HintNewBranch})
 		base = append(base, acts...)
 	}
 	return append(base, HintSet{{"/", HintFilter}, {"q", HintQuit}}...)
@@ -58,13 +60,6 @@ func CommitHints(isHead, multiSelect bool) HintSet {
 		base = append(base, struct{ Key, Desc string }{"d", HintDrop})
 	}
 	return append(base, HintSet{{"s", HintMultiSelect}, {"/", HintFilter}, {"q", HintQuit}}...)
-}
-
-var NewBranchButtonHints = HintSet{
-	{"tab", HintNextPanel},
-	{"j/k", HintNavigate},
-	{"Enter", HintNewBranch},
-	{"q", HintQuit},
 }
 
 var FilterHints = HintSet{

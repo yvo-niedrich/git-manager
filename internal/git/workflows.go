@@ -43,9 +43,66 @@ func (w *Workflows) stashAround(label string, fn func() error) WorkflowResult {
 	return WorkflowResult{Message: label + " complete" + msg}
 }
 
-func (w *Workflows) CreateBranch(name string) WorkflowResult {
-	err := w.c.CreateBranch(name)
+// stashAroundCheckout is like stashAround but explicitly manages a cross-branch
+// checkout: it switches to target, runs fn, then returns to original before
+// popping the stash. If the return checkout fails the stash is intentionally
+// left in place to avoid applying changes to the wrong branch.
+func (w *Workflows) stashAroundCheckout(label, original, target string, fn func() error) WorkflowResult {
+	sr, err := w.c.AutoStash(label)
 	if err != nil {
+		return WorkflowResult{Err: err}
+	}
+
+	if original != target {
+		if err := w.c.Checkout(target); err != nil {
+			_ = w.c.AutoUnstash(sr) // still on original; safe to pop
+			return WorkflowResult{Err: fmt.Errorf("checkout %s: %w", target, err)}
+		}
+	}
+
+	opErr := fn()
+
+	if original != target {
+		if checkoutErr := w.c.Checkout(original); checkoutErr != nil {
+			// Cannot safely pop the stash from the wrong branch. Leave it intact.
+			if opErr != nil {
+				return WorkflowResult{Err: fmt.Errorf("%v; could not return to %s (%w) — stash not restored, pop manually on %s", opErr, original, checkoutErr, original)}
+			}
+			return WorkflowResult{Err: fmt.Errorf("could not return to %s: %w — stash not restored, pop manually on %s", original, checkoutErr, original)}
+		}
+	}
+
+	unstashErr := w.c.AutoUnstash(sr)
+	if opErr != nil {
+		return WorkflowResult{Err: opErr}
+	}
+	if unstashErr != nil {
+		return WorkflowResult{
+			Message: fmt.Sprintf("done, but stash pop failed: %v", unstashErr),
+			Err:     unstashErr,
+		}
+	}
+	msg := ""
+	if sr.WasNeeded {
+		msg = " (uncommitted changes stashed and restored)"
+	}
+	return WorkflowResult{Message: label + " complete" + msg}
+}
+
+// CreateBranch creates a new branch from `from` and checks it out.
+// When `from` is the current branch, uncommitted changes carry forward naturally
+// (git preserves them on the new branch). When `from` differs, stashAround
+// ensures uncommitted changes are saved and restored on the new branch.
+func (w *Workflows) CreateBranch(name, from string) WorkflowResult {
+	current := w.c.CurrentBranch()
+	label := fmt.Sprintf("create branch %s", name)
+	if from != "" && from != current {
+		// Switching to a different base: stash first to avoid dirty-tree conflicts.
+		return w.stashAround(label, func() error {
+			return w.c.CreateBranch(name, from)
+		})
+	}
+	if err := w.c.CreateBranch(name, ""); err != nil {
 		return WorkflowResult{Err: fmt.Errorf("create branch %q: %w", name, err)}
 	}
 	return WorkflowResult{Message: "created branch " + name}
@@ -69,22 +126,10 @@ func (w *Workflows) CheckoutRemote(remoteBranch string) WorkflowResult {
 func (w *Workflows) MergeInto(source, target string) WorkflowResult {
 	original := w.c.CurrentBranch()
 	label := fmt.Sprintf("merge %s into %s", source, target)
-
-	return w.stashAround(label, func() error {
-		if original != target {
-			if err := w.c.Checkout(target); err != nil {
-				return fmt.Errorf("checkout %s: %w", target, err)
-			}
-		}
+	return w.stashAroundCheckout(label, original, target, func() error {
 		mergeErr := w.c.Merge(source)
 		if mergeErr != nil {
 			w.c.run("merge", "--abort") //nolint — best-effort cleanup
-		}
-		if original != target {
-			// Return to original so AutoUnstash pops the stash on the right branch.
-			if err := w.c.Checkout(original); err != nil && mergeErr == nil {
-				return fmt.Errorf("checkout %s: %w", original, err)
-			}
 		}
 		return mergeErr
 	})
@@ -96,22 +141,10 @@ func (w *Workflows) MergeInto(source, target string) WorkflowResult {
 func (w *Workflows) RebaseOnto(source, onto string) WorkflowResult {
 	original := w.c.CurrentBranch()
 	label := fmt.Sprintf("rebase %s onto %s", source, onto)
-
-	return w.stashAround(label, func() error {
-		if original != source {
-			if err := w.c.Checkout(source); err != nil {
-				return fmt.Errorf("checkout %s: %w", source, err)
-			}
-		}
+	return w.stashAroundCheckout(label, original, source, func() error {
 		rebaseErr := w.c.Rebase(onto)
 		if rebaseErr != nil {
 			w.c.run("rebase", "--abort") //nolint — best-effort cleanup
-		}
-		if original != source {
-			// Return to original so AutoUnstash pops the stash on the right branch.
-			if err := w.c.Checkout(original); err != nil && rebaseErr == nil {
-				return fmt.Errorf("checkout %s: %w", original, err)
-			}
 		}
 		return rebaseErr
 	})
@@ -157,9 +190,20 @@ func (w *Workflows) SquashCommits(hashes []string) WorkflowResult {
 	return WorkflowResult{Message: fmt.Sprintf("squashed %d commits", len(hashes))}
 }
 
+// ErrNotFullyMerged is returned by DeleteBranch when git refuses the safe
+// delete because the branch contains commits unreachable from any other branch.
+type ErrNotFullyMerged struct{ Branch string }
+
+func (e ErrNotFullyMerged) Error() string {
+	return fmt.Sprintf("branch %q has unmerged commits", e.Branch)
+}
+
 func (w *Workflows) DeleteBranch(name string, force bool) WorkflowResult {
 	err := w.c.DeleteBranch(name, force)
 	if err != nil {
+		if !force && strings.Contains(err.Error(), "not fully merged") {
+			return WorkflowResult{Err: ErrNotFullyMerged{Branch: name}}
+		}
 		return WorkflowResult{Err: err}
 	}
 	return WorkflowResult{Message: "deleted branch " + name}

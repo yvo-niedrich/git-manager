@@ -15,14 +15,13 @@ const (
 // ── Branch panel ──────────────────────────────────────────────────────────────
 
 const (
-	SectionLocal         = "LOCAL"
-	SectionRemote        = "REMOTE"
-	MarkerCurrentBranch  = "▶ "
-	MarkerUpstreamArrow  = " -> "
-	FilterPrompt         = "  / filter"
-	FilterActiveMark     = "  ~"
-	PlaceholderBranches  = "filter branches..."
-	NewBranchButtonLabel = "» new branch"
+	SectionLocal        = "LOCAL"
+	SectionRemote       = "REMOTE"
+	MarkerCurrentBranch = "▶ "
+	MarkerUpstreamArrow = " -> "
+	FilterPrompt        = "  / filter"
+	FilterActiveMark    = "  ~"
+	PlaceholderBranches = "filter branches..."
 )
 
 // ── Branch picker dialog ───────────────────────────────────────────────────────
@@ -54,30 +53,33 @@ const (
 // ── Context menu ──────────────────────────────────────────────────────────────
 
 const (
-	MenuTitle          = "Actions"
-	MenuCheckoutRemote = "Checkout (create local tracking)"
-	MenuFetchRemote    = "Fetch remote"
-	MenuCheckout       = "Checkout"
-	MenuMerge          = "Merge into …"
-	MenuRebase         = "Rebase onto …"
-	MenuPush           = "Push to remote"
-	MenuForcePush      = "Force-push to remote"
-	MenuPullFromFmt    = "Pull from %s"
-	MenuDeleteBranch   = "Delete branch"
-	MenuCherryPick     = "Cherry-pick onto current branch"
-	MenuRevert         = "Revert (create revert commit)"
-	MenuCopyHash       = "Copy commit hash"
-	MenuDropCommit     = "Drop commit from history"
-	MenuAmend          = "Amend commit message"
-	MenuSquash         = "Squash with next commit"
+	MenuTitle              = "Actions"
+	MenuCheckoutRemote     = "Checkout (create local tracking)"
+	MenuFetchRemote        = "Fetch remote"
+	MenuCheckout           = "Checkout"
+	MenuMerge              = "Merge into …"
+	MenuRebase             = "Rebase onto …"
+	MenuPush               = "Push to remote"
+	MenuForcePush          = "Force-push to remote"
+	MenuPullFromFmt        = "Pull from %s"
+	MenuDeleteBranch       = "Delete branch"
+	MenuDeleteRemoteBranch = "Delete Remote branch"
+	MenuNewBranch          = "New branch from here…"
+	MenuCherryPick         = "Cherry-pick onto current branch"
+	MenuRevert             = "Revert (create revert commit)"
+	MenuCopyHash           = "Copy commit hash"
+	MenuDropCommit         = "Drop commit from history"
+	MenuAmend              = "Amend commit message"
+	MenuSquash             = "Squash with next commit"
 )
 
 // ── Confirm dialogs ───────────────────────────────────────────────────────────
 
 const (
-	ConfirmDeleteBranch  = "Delete branch?"
-	ConfirmForcePushFmt  = "Force-push %q to origin? This overwrites remote history."
-	ConfirmDropCommitFmt = "Drop commit %s from history?"
+	ConfirmDeleteBranch      = "Delete branch?"
+	ConfirmForceDeleteBranch = "Branch has unmerged commits. Force delete anyway?"
+	ConfirmForcePushFmt      = "Force-push %q to origin? This overwrites remote history."
+	ConfirmDropCommitFmt     = "Drop commit %s from history?"
 )
 
 // ── Amend dialog ──────────────────────────────────────────────────────────────

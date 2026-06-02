@@ -104,7 +104,10 @@ func (m *AmendModel) View() string {
 }
 
 // NewBranchSubmitMsg is emitted when the user confirms a new branch name.
-type NewBranchSubmitMsg struct{ Name string }
+type NewBranchSubmitMsg struct {
+	Name string
+	From string // source branch to create from
+}
 
 // NewBranchModel is a text-input dialog for creating a new branch.
 type NewBranchModel struct {
@@ -145,7 +148,7 @@ func (m *NewBranchModel) DialogUpdate(msg tea.Msg) (DialogContent, tea.Cmd) {
 				m.errMsg = fmt.Sprintf(ui.NewBranchErrExistsFmt, name)
 				return m, nil
 			}
-			return nil, func() tea.Msg { return NewBranchSubmitMsg{Name: name} }
+			return nil, func() tea.Msg { return NewBranchSubmitMsg{Name: name, From: m.fromBranch} }
 		case "esc":
 			return nil, nil
 		default:

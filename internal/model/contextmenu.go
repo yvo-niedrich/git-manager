@@ -28,6 +28,7 @@ const (
 	ActionAmend
 	ActionSquash
 	ActionCopyHash
+	ActionNewBranch
 )
 
 type MenuItem struct {
@@ -55,21 +56,24 @@ func BranchMenuItems(isRemote, isCurrent bool, upstream string) []MenuItem {
 	}
 	var items []MenuItem
 	if !isCurrent {
-		items = append(items,
-			MenuItem{Label: ui.MenuCheckout, Action: ActionCheckout, Key: "c"},
-			MenuItem{Label: ui.MenuMerge, Action: ActionMerge, Key: "m"},
-			MenuItem{Label: ui.MenuRebase, Action: ActionRebase, Key: "r"},
-		)
+		items = append(items, MenuItem{Label: ui.MenuCheckout, Action: ActionCheckout, Key: "c"})
 	}
 	items = append(items,
+		MenuItem{Label: ui.MenuMerge, Action: ActionMerge, Key: "m"},
+		MenuItem{Label: ui.MenuRebase, Action: ActionRebase, Key: "r"},
 		MenuItem{Label: ui.MenuPush, Action: ActionPush, Key: "p"},
 		MenuItem{Label: ui.MenuForcePush, Action: ActionForcePush, Key: "F", MenuOnly: true},
 	)
 	if upstream != "" {
 		items = append(items, MenuItem{Label: fmt.Sprintf(ui.MenuPullFromFmt, upstream), Action: ActionPull, Key: "l"})
 	}
+	items = append(items, MenuItem{Label: ui.MenuNewBranch, Action: ActionNewBranch, Key: "n"})
 	if !isCurrent {
-		items = append(items, MenuItem{Label: ui.MenuDeleteBranch, Action: ActionDeleteBranch, Key: "D"})
+		label := ui.MenuDeleteBranch
+		if isRemote {
+			label = ui.MenuDeleteRemoteBranch
+		}
+		items = append(items, MenuItem{Label: label, Action: ActionDeleteBranch, Key: "D"})
 	}
 	return items
 }

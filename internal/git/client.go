@@ -78,6 +78,13 @@ func (c *Client) CurrentBranch() string {
 	if err != nil {
 		return "HEAD"
 	}
+	if out == "HEAD" {
+		// Detached HEAD — capture the exact commit hash so Checkout can re-detach
+		// at the pre-operation position rather than at a newly-created merge commit.
+		if hash, err := c.run("rev-parse", "HEAD"); err == nil {
+			return hash
+		}
+	}
 	return out
 }
 
@@ -196,7 +203,6 @@ func (c *Client) ShowCommit(hash string) (CommitDetail, error) {
 		}
 	}
 	detail.StatLines = statLines
-	detail.Tags = c.fetchTagMap()[hash]
 
 	for _, l := range headerLines {
 		switch {
@@ -241,8 +247,14 @@ func (c *Client) Checkout(ref string) error {
 	return err
 }
 
-func (c *Client) CreateBranch(name string) error {
-	_, err := c.run("checkout", "-b", name)
+// CreateBranch creates a new branch and checks it out.
+// If from is empty the branch is created from HEAD; otherwise from that ref.
+func (c *Client) CreateBranch(name, from string) error {
+	if from == "" {
+		_, err := c.run("checkout", "-b", name)
+		return err
+	}
+	_, err := c.run("checkout", "-b", name, from)
 	return err
 }
 

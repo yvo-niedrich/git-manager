@@ -111,28 +111,15 @@ func (m CommitsModel) Update(msg tea.Msg) (CommitsModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		if m.filterActive {
-			switch msg.String() {
-			case "esc":
-				m.filterActive = false
-				m.filterInput.SetValue("")
-				m.filterInput.Blur()
+			reset, emit, inputCmd := applyFilterKey(msg, &m.filterInput, &m.filterActive)
+			if reset {
 				m.cursor = 0
 				m.offset = 0
-				return m, m.selectionCmd()
-			case "enter":
-				m.filterActive = false
-				m.filterInput.Blur()
-				return m, nil
-			default:
-				prev := m.filterInput.Value()
-				var cmd tea.Cmd
-				m.filterInput, cmd = m.filterInput.Update(msg)
-				if m.filterInput.Value() != prev {
-					m.cursor = 0
-					m.offset = 0
-				}
-				return m, tea.Batch(cmd, m.selectionCmd())
 			}
+			if emit {
+				return m, tea.Batch(inputCmd, m.selectionCmd())
+			}
+			return m, inputCmd
 		}
 		switch {
 		case key.Matches(msg, key.NewBinding(key.WithKeys("/"))):
@@ -191,11 +178,16 @@ func (m CommitsModel) Update(msg tea.Msg) (CommitsModel, tea.Cmd) {
 	return m, nil
 }
 
-func (m *CommitsModel) clampOffset() {
-	innerH := m.height - 6
-	if innerH < 1 {
-		innerH = 1
+func (m CommitsModel) innerHeight() int {
+	h := m.height - 6
+	if h < 1 {
+		h = 1
 	}
+	return h
+}
+
+func (m *CommitsModel) clampOffset() {
+	innerH := m.innerHeight()
 	if m.cursor < m.offset {
 		m.offset = m.cursor
 	}
@@ -222,10 +214,7 @@ func (m CommitsModel) View() string {
 	}
 
 	innerW := ui.InnerWidth(m.width)
-	innerH := m.height - 6
-	if innerH < 1 {
-		innerH = 1
-	}
+	innerH := m.innerHeight()
 
 	var filterLine string
 	switch {
@@ -282,6 +271,8 @@ func (m CommitsModel) View() string {
 			runes := []rune(subj)
 			if over < len(runes) {
 				subj = string(runes[:len(runes)-over-1]) + "…"
+			} else {
+				subj = ""
 			}
 			text = fmt.Sprintf("%s %s %s", bullet, hash, subj)
 		}

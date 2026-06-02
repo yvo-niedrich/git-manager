@@ -174,7 +174,7 @@ func TestApp_MergeActionOpensBranchPicker(t *testing.T) {
 	}
 	a.branches.SetBranches(branches)
 	// Move cursor to the non-current branch.
-	for !a.branches.IsNewBranchSelected() {
+	for {
 		if sel := a.branches.Selected(); sel != nil && sel.Name == nonCurrent.Name {
 			break
 		}

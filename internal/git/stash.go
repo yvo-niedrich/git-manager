@@ -36,17 +36,14 @@ func (c *Client) AutoUnstash(r StashResult) error {
 	if err != nil {
 		return fmt.Errorf("stash list failed: %w", err)
 	}
-	ref := "stash@{0}" // fallback
 	for _, line := range lines {
 		parts := strings.SplitN(line, "\t", 2)
 		if len(parts) == 2 && parts[1] == r.Ref {
-			ref = parts[0]
-			break
+			if _, err = c.run("stash", "pop", parts[0]); err != nil {
+				return fmt.Errorf("stash pop failed: %w", err)
+			}
+			return nil
 		}
 	}
-	_, err = c.run("stash", "pop", ref)
-	if err != nil {
-		return fmt.Errorf("stash pop failed: %w", err)
-	}
-	return nil
+	return fmt.Errorf("stash entry %s not found — pop manually: git stash list", r.Ref)
 }

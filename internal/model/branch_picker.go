@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/user/gitmg/internal/ui"
 )
 
@@ -76,7 +77,7 @@ func NewBranchPickerDialog(action MenuAction, source, current string, localNames
 	// listW: wide enough for the longest name + "▶ " prefix, capped at 52.
 	listW := 24
 	for _, name := range branches {
-		if w := len(name) + 2; w > listW {
+		if w := lipgloss.Width(name) + 2; w > listW {
 			listW = w
 		}
 	}
@@ -232,8 +233,12 @@ func (m *BranchPickerModel) View() string {
 		}
 		for i := m.offset; i < end; i++ {
 			name := filtered[i]
-			if len(name) > m.listW-2 {
-				name = name[:m.listW-3] + "…"
+			if lipgloss.Width(name) > m.listW-2 {
+				runes := []rune(name)
+				for len(runes) > 0 && lipgloss.Width(string(runes)) > m.listW-3 {
+					runes = runes[:len(runes)-1]
+				}
+				name = string(runes) + "…"
 			}
 			if i == cursor {
 				sb.WriteString(ui.SelectedItemStyle.Width(m.listW).Render("▶ " + name))

@@ -95,6 +95,7 @@ func NewApp(repoRoot string) (*App, error) {
 		a.commits = cm
 		if sel2 := cm.Selected(); sel2 != nil {
 			detail, _ := client.ShowCommit(sel2.Hash)
+			detail.Tags = sel2.Tags
 			dm.SetCommit(detail)
 			a.detail = dm
 		}
@@ -155,7 +156,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, a.loadCommitsCmd(msg.Branch.FullRef())
 
 	case CommitSelectedMsg:
-		return a, a.loadDetailCmd(msg.Commit.Hash)
+		return a, a.loadDetailCmd(msg.Commit)
 
 	case clearStatusMsg:
 		if msg.gen == a.statusGen {
@@ -171,7 +172,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.commits.SetCommits(msg.commits)
 		a.commits.branchRef = msg.ref
 		if sel := a.commits.Selected(); sel != nil {
-			return a, a.loadDetailCmd(sel.Hash)
+			return a, a.loadDetailCmd(*sel)
 		}
 		return a, nil
 
@@ -209,13 +210,23 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case WorkflowResultMsg:
 		r := msg.Result
-		var statusCmd tea.Cmd
 		if r.Err != nil {
-			statusCmd = a.setStatus(r.Err.Error(), true)
-		} else {
-			statusCmd = a.setStatus(r.Message, false)
+			if nfm, ok := r.Err.(git.ErrNotFullyMerged); ok {
+				branch := nfm.Branch
+				a.dialogs.Push(NewConfirmDialogWithSubject(
+					ui.ConfirmForceDeleteBranch,
+					branch,
+					func() tea.Cmd {
+						return a.runWorkflow(func() git.WorkflowResult {
+							return a.wf.DeleteBranch(branch, true)
+						})
+					},
+				))
+				return a, nil
+			}
+			return a, tea.Batch(a.setStatus(r.Err.Error(), true), a.refreshAll())
 		}
-		return a, tea.Batch(statusCmd, a.refreshAll())
+		return a, tea.Batch(a.setStatus(r.Message, false), a.refreshAll())
 
 	case AmendSubmitMsg:
 		return a, a.runWorkflow(func() git.WorkflowResult {
@@ -223,9 +234,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		})
 
 	case NewBranchSubmitMsg:
-		name := msg.Name
+		name, from := msg.Name, msg.From
 		return a, a.runWorkflow(func() git.WorkflowResult {
-			return a.wf.CreateBranch(name)
+			return a.wf.CreateBranch(name, from)
 		})
 	}
 
@@ -282,16 +293,12 @@ func (a *App) renderStatusBar() string {
 	var hints ui.HintSet
 	switch a.focus {
 	case panelBranches:
-		if a.branches.IsNewBranchSelected() {
-			hints = ui.NewBranchButtonHints
-		} else {
-			isRemote, isCurrent, hasUpstream := false, false, false
-			if sel := a.branches.Selected(); sel != nil {
-				isRemote, isCurrent = sel.IsRemote, sel.IsCurrent
-				hasUpstream = !sel.IsRemote && sel.Upstream != ""
-			}
-			hints = ui.BranchHints(isRemote, isCurrent, hasUpstream)
+		isRemote, isCurrent, hasUpstream := false, false, false
+		if sel := a.branches.Selected(); sel != nil {
+			isRemote, isCurrent = sel.IsRemote, sel.IsCurrent
+			hasUpstream = !sel.IsRemote && sel.Upstream != ""
 		}
+		hints = ui.BranchHints(isRemote, isCurrent, hasUpstream)
 	case panelCommits:
 		isHead := false
 		if sel := a.commits.Selected(); sel != nil {
@@ -349,10 +356,6 @@ func (a *App) openContextMenu() tea.Cmd {
 	var items []MenuItem
 	switch a.focus {
 	case panelBranches:
-		if a.branches.IsNewBranchSelected() {
-			a.dialogs.Push(NewBranchDialog(a.client.CurrentBranch(), a.branches.LocalNames()))
-			return nil
-		}
 		sel := a.branches.Selected()
 		if sel == nil {
 			return nil
@@ -500,6 +503,10 @@ func (a *App) handleMenuAction(action MenuAction) tea.Cmd {
 		if sel := a.commits.Selected(); sel != nil {
 			return a.setStatus("hash: "+sel.Hash, false)
 		}
+	case ActionNewBranch:
+		if sel := a.branches.Selected(); sel != nil {
+			a.dialogs.Push(NewBranchDialog(sel.Name, a.branches.LocalNames()))
+		}
 	}
 	return nil
 }
@@ -537,10 +544,13 @@ func (a *App) loadPRsCmd() tea.Cmd {
 	}
 }
 
-func (a *App) loadDetailCmd(hash string) tea.Cmd {
+func (a *App) loadDetailCmd(commit git.Commit) tea.Cmd {
 	client := a.client
 	return func() tea.Msg {
-		detail, err := client.ShowCommit(hash)
+		detail, err := client.ShowCommit(commit.Hash)
+		if err == nil {
+			detail.Tags = commit.Tags
+		}
 		return loadDetailMsg{detail: detail, err: err}
 	}
 }
@@ -553,15 +563,18 @@ func (a *App) runWorkflow(fn func() git.WorkflowResult) tea.Cmd {
 
 func (a *App) refreshAll() tea.Cmd {
 	client := a.client
-	current := a.client.CurrentBranch()
+	ref := a.commits.branchRef
+	if ref == "" {
+		ref = a.client.CurrentBranch()
+	}
 	return tea.Batch(
 		func() tea.Msg {
 			branches, err := client.ListBranches()
 			return refreshBranchesMsg{branches: branches, err: err}
 		},
 		func() tea.Msg {
-			commits, err := client.ListCommits(current, 200)
-			return loadCommitsMsg{ref: current, commits: commits, err: err}
+			commits, err := client.ListCommits(ref, 200)
+			return loadCommitsMsg{ref: ref, commits: commits, err: err}
 		},
 	)
 }
