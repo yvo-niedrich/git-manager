@@ -1,5 +1,5 @@
-BINARY  := gitmg
-CMD     := ./cmd/gitmg
+BINARY  := gim
+CMD     := ./cmd/git-manager
 DIST    := dist
 
 PLATFORMS := \
@@ -9,7 +9,7 @@ PLATFORMS := \
 	linux/arm64 \
 	windows/amd64
 
-NAME    ?= git-mg
+NAME    ?= gim
 PREFIX  ?= /usr/local/bin
 
 .PHONY: build test run install clean

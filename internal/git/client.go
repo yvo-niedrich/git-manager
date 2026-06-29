@@ -5,6 +5,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/yvo.niedrich/git-manager/internal/config"
 )
 
 type Branch struct {
@@ -36,17 +38,18 @@ type Commit struct {
 
 type CommitDetail struct {
 	Commit
-	Body     string
+	Body      string
 	StatLines []string // e.g. ["src/foo.go | 8 ++------"]
-	Diff     string
+	Diff      string
 }
 
 type Client struct {
 	repoRoot string
+	cfg      config.Config
 }
 
-func NewClient(repoRoot string) *Client {
-	return &Client{repoRoot: repoRoot}
+func NewClient(repoRoot string, cfg config.Config) *Client {
+	return &Client{repoRoot: repoRoot, cfg: cfg}
 }
 
 func (c *Client) run(args ...string) (string, error) {
@@ -325,7 +328,7 @@ func (c *Client) SquashCommits(hashes []string) error {
 
 	// Use GIT_SEQUENCE_EDITOR to inject the todo
 	script := fmt.Sprintf("#!/bin/sh\necho %q > \"$1\"\n", todo.String())
-	tmpScript := "/tmp/gitmg-squash-editor.sh"
+	tmpScript := "/tmp/git-manager-squash-editor.sh"
 	if err := writeFile(tmpScript, script, 0755); err != nil {
 		return err
 	}
@@ -365,8 +368,10 @@ func (c *Client) Fetch(remote string) error {
 }
 
 // Pull runs "git pull" on the current branch using its configured upstream.
+// The reconciliation strategy is taken from config and passed explicitly, so
+// the pull does not depend on the user's global git settings being set.
 func (c *Client) Pull() error {
-	_, err := c.run("pull")
+	_, err := c.run("pull", c.cfg.PullStrategy().String())
 	return err
 }
 

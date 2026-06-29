@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/user/gitmg/internal/ui"
+	"github.com/yvo.niedrich/git-manager/internal/ui"
 )
 
 // BranchPickerSubmitMsg is emitted when the user confirms a target branch.

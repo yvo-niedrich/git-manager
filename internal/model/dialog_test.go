@@ -160,11 +160,19 @@ func hasAction(items []MenuItem, action MenuAction) bool {
 	return false
 }
 
-func TestBranchMenuItems_CurrentBranchExcludesMergeRebaseCheckoutDelete(t *testing.T) {
+func TestBranchMenuItems_CurrentBranchExcludesCheckoutDelete(t *testing.T) {
 	items := BranchMenuItems(false, true, "")
-	for _, banned := range []MenuAction{ActionCheckout, ActionMerge, ActionRebase, ActionDeleteBranch} {
+	// Checkout and Delete cannot target the branch you are on. Merge and Rebase
+	// remain available: the branch picker chooses the counterpart branch, so
+	// "merge current into <target>" / "rebase current onto <target>" are valid.
+	for _, banned := range []MenuAction{ActionCheckout, ActionDeleteBranch} {
 		if hasAction(items, banned) {
 			t.Errorf("current-branch menu should not contain action %v", banned)
+		}
+	}
+	for _, want := range []MenuAction{ActionMerge, ActionRebase} {
+		if !hasAction(items, want) {
+			t.Errorf("current-branch menu should contain action %v (picker selects the target)", want)
 		}
 	}
 }

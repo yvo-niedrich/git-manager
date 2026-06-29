@@ -3,15 +3,16 @@ package git_test
 import (
 	"testing"
 
-	"github.com/user/gitmg/internal/git"
-	"github.com/user/gitmg/internal/testutil"
+	"github.com/yvo.niedrich/git-manager/internal/config"
+	"github.com/yvo.niedrich/git-manager/internal/git"
+	"github.com/yvo.niedrich/git-manager/internal/testutil"
 )
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 func fixture(t *testing.T) *git.Client {
 	t.Helper()
-	return git.NewClient(testutil.FixtureRepo(t))
+	return git.NewClient(testutil.FixtureRepo(t), config.NewStatic())
 }
 
 func findBranch(branches []git.Branch, name string, isRemote bool) *git.Branch {

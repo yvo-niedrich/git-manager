@@ -7,8 +7,8 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/user/gitmg/internal/git"
-	"github.com/user/gitmg/internal/ui"
+	"github.com/yvo.niedrich/git-manager/internal/git"
+	"github.com/yvo.niedrich/git-manager/internal/ui"
 )
 
 type DetailModel struct {

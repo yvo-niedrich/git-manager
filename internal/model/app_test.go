@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/user/gitmg/internal/git"
+	"github.com/yvo.niedrich/git-manager/internal/git"
 )
 
 // ── focus ─────────────────────────────────────────────────────────────────────

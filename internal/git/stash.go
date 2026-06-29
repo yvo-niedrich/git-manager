@@ -14,7 +14,7 @@ func (c *Client) AutoStash(label string) (StashResult, error) {
 	if !c.HasUncommittedChanges() {
 		return StashResult{WasNeeded: false}, nil
 	}
-	msg := fmt.Sprintf("gitmg: %s", label)
+	msg := fmt.Sprintf("git-manager: %s", label)
 	_, err := c.run("stash", "push", "-u", "-m", msg)
 	if err != nil {
 		return StashResult{}, fmt.Errorf("stash failed: %w", err)

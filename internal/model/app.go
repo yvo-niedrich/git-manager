@@ -9,8 +9,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/user/gitmg/internal/git"
-	"github.com/user/gitmg/internal/ui"
+	"github.com/yvo.niedrich/git-manager/internal/config"
+	"github.com/yvo.niedrich/git-manager/internal/git"
+	"github.com/yvo.niedrich/git-manager/internal/ui"
 )
 
 type panel int
@@ -64,7 +65,7 @@ type App struct {
 }
 
 func NewApp(repoRoot string) (*App, error) {
-	client := git.NewClient(repoRoot)
+	client := git.NewClient(repoRoot, config.NewStatic())
 	wf := git.NewWorkflows(client)
 
 	branches, err := client.ListBranches()
@@ -252,7 +253,7 @@ func (a *App) View() string {
 	bg := a.renderPanels() + a.renderStatusBar()
 
 	if a.dialogs.IsOpen() {
-		const mX, mY = 4, 3    // outer margin from terminal edges
+		const mX, mY = 4, 3     // outer margin from terminal edges
 		const padX, padY = 2, 1 // black gutter around the box
 
 		box := a.dialogs.Active().View()

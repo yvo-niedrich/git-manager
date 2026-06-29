@@ -1,4 +1,4 @@
-module github.com/user/gitmg
+module github.com/yvo.niedrich/git-manager
 
 go 1.24
 

@@ -8,8 +8,8 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/user/gitmg/internal/git"
-	"github.com/user/gitmg/internal/ui"
+	"github.com/yvo.niedrich/git-manager/internal/git"
+	"github.com/yvo.niedrich/git-manager/internal/ui"
 )
 
 type CommitsModel struct {
@@ -251,6 +251,9 @@ func (m CommitsModel) View() string {
 			tagW = lipgloss.Width(tagLabel) + 1 // +1 for gap between text and tag
 		}
 		availW := innerW - tagW
+		if availW < 0 {
+			availW = 0
+		}
 
 		plainBullet := "●"
 		if c.IsHead {

@@ -6,7 +6,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/user/gitmg/internal/ui"
+	"github.com/yvo.niedrich/git-manager/internal/ui"
 )
 
 type AmendSubmitMsg struct{ NewMessage string }

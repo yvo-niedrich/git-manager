@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/user/gitmg/internal/git"
-	"github.com/user/gitmg/internal/testutil"
+	"github.com/yvo.niedrich/git-manager/internal/git"
+	"github.com/yvo.niedrich/git-manager/internal/testutil"
 )
 
 // press builds a tea.KeyMsg from a key name string, matching the same
@@ -54,9 +54,9 @@ func makeBranches() []git.Branch {
 
 func makeCommits() []git.Commit {
 	return []git.Commit{
-		{Hash: "aaaa1111", ShortHash: "aaaa111", Subject: "third commit",  Author: "Alice", IsHead: true},
-		{Hash: "bbbb2222", ShortHash: "bbbb222", Subject: "second commit", Author: "Bob",   Tags: []string{"v1.0"}},
-		{Hash: "cccc3333", ShortHash: "cccc333", Subject: "first commit",  Author: "Alice"},
+		{Hash: "aaaa1111", ShortHash: "aaaa111", Subject: "third commit", Author: "Alice", IsHead: true},
+		{Hash: "bbbb2222", ShortHash: "bbbb222", Subject: "second commit", Author: "Bob", Tags: []string{"v1.0"}},
+		{Hash: "cccc3333", ShortHash: "cccc333", Subject: "first commit", Author: "Alice"},
 	}
 }
 

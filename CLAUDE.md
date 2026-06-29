@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`gitwise` is a terminal-based git manager — a 3-panel TUI (Branches / Commits / Detail) that wraps the local `git` binary. It does not embed git or manage credentials. The module name is `github.com/user/gitwise`.
+`git-manager` is a terminal-based git manager — a 3-panel TUI (Branches / Commits / Detail) that wraps the local `git` binary. It does not embed git or manage credentials. The module name is `github.com/user/git-manager`.
 
 ## Core design principle
 
@@ -18,13 +18,13 @@ The one deliberate exception is operations whose *purpose* is to interact with u
 
 ```bash
 go build ./...          # build everything
-go run ./cmd/gitwise    # run the app (cmd/gitwise/main.go is the entry point)
+go run ./cmd/git-manager    # run the app (cmd/git-manager/main.go is the entry point)
 go test ./...           # run all tests
 go test ./internal/git  # run a single package's tests
 go vet ./...            # lint
 ```
 
-> `cmd/gitwise/main.go` is planned but not yet created. It should call `git.FindRepoRoot(cwd)`, construct `model.NewApp(repoRoot)`, and run `tea.NewProgram(app, tea.WithAltScreen())`.
+> `cmd/git-manager/main.go` is planned but not yet created. It should call `git.FindRepoRoot(cwd)`, construct `model.NewApp(repoRoot)`, and run `tea.NewProgram(app, tea.WithAltScreen())`.
 
 ## Architecture
 
