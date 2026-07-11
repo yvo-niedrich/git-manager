@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/yvo.niedrich/git-manager/internal/ui"
@@ -99,6 +101,63 @@ func (m *AmendModel) View() string {
 		m.input.View(),
 		ui.KeyHintStyle.Render("[Enter]"),
 		ui.DescHintStyle.Render(ui.HintSave+"  ")+ui.KeyHintStyle.Render("[Esc]")+" "+ui.DescHintStyle.Render(ui.HintCancel),
+	)
+	return ui.MenuBorderStyle.Render(body)
+}
+
+// CommitMessageSubmitMsg is emitted when the user confirms a commit message.
+type CommitMessageSubmitMsg struct{ Message string }
+
+// CommitMessageModel is a multi-line text-edit dialog for entering a new
+// commit message. Plain Enter submits; Alt+Enter (and, on terminals that
+// support it, Ctrl+Enter) inserts a newline so the message can have a body
+// paragraph below the subject line.
+type CommitMessageModel struct {
+	input textarea.Model
+}
+
+func NewCommitMessageDialog() *CommitMessageModel {
+	ta := textarea.New()
+	ta.Placeholder = ui.CommitMessagePlaceholder
+	ta.ShowLineNumbers = false
+	ta.CharLimit = 4000
+	// Rebind newline insertion off plain Enter (which we intercept ourselves
+	// to submit) and onto Alt/Ctrl+Enter instead.
+	ta.KeyMap.InsertNewline = key.NewBinding(key.WithKeys("alt+enter", "ctrl+enter"))
+	ta.SetWidth(52)
+	ta.SetHeight(5)
+	ta.Focus()
+	return &CommitMessageModel{input: ta}
+}
+
+func (m *CommitMessageModel) Priority() int { return 20 }
+
+func (m *CommitMessageModel) DialogUpdate(msg tea.Msg) (DialogContent, tea.Cmd) {
+	if km, ok := msg.(tea.KeyMsg); ok {
+		switch km.String() {
+		case "enter":
+			val := strings.TrimSpace(m.input.Value())
+			if val == "" {
+				return m, nil
+			}
+			return nil, func() tea.Msg { return CommitMessageSubmitMsg{Message: val} }
+		case "esc":
+			return nil, nil
+		}
+	}
+	var cmd tea.Cmd
+	m.input, cmd = m.input.Update(msg)
+	return m, cmd
+}
+
+func (m *CommitMessageModel) View() string {
+	body := fmt.Sprintf("\n  %s\n\n  %s\n\n  %s %s  %s %s",
+		ui.TitleStyle(true).Render(ui.CommitMessageTitle),
+		m.input.View(),
+		ui.KeyHintStyle.Render("[Enter]"),
+		ui.DescHintStyle.Render(ui.HintCommit),
+		ui.KeyHintStyle.Render("[Alt+Enter]"),
+		ui.DescHintStyle.Render(ui.HintNewline+"  ")+ui.KeyHintStyle.Render("[Esc]")+" "+ui.DescHintStyle.Render(ui.HintCancel),
 	)
 	return ui.MenuBorderStyle.Render(body)
 }

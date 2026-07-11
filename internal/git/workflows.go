@@ -174,12 +174,57 @@ func (w *Workflows) DropCommit(hash string) WorkflowResult {
 	return WorkflowResult{Message: fmt.Sprintf("dropped %s", hash[:7])}
 }
 
+// Commit stages the current uncommitted changes and commits them with message.
+// Like AmendLast, this deliberately does not use stashAround: committing is
+// the operation the user asked for uncommitted changes to undergo, not
+// something to stash out of the way.
+//
+// It stages tracked changes (modified/deleted files) if any exist; otherwise
+// it stages all untracked files. This mirrors what the commit-preview dialog
+// showed the user before they typed the message, and is safe to recompute
+// here since nothing else can touch the working tree while that dialog is open.
+func (w *Workflows) Commit(message string) WorkflowResult {
+	status, err := w.c.Status()
+	if err != nil {
+		return WorkflowResult{Err: err}
+	}
+	switch {
+	case len(status.Tracked) > 0:
+		if err := w.c.StageTrackedChanges(); err != nil {
+			return WorkflowResult{Err: fmt.Errorf("stage changes: %w", err)}
+		}
+	case len(status.Untracked) > 0:
+		if err := w.c.StagePaths(status.Untracked); err != nil {
+			return WorkflowResult{Err: fmt.Errorf("stage changes: %w", err)}
+		}
+	default:
+		return WorkflowResult{Err: fmt.Errorf("nothing to commit")}
+	}
+	if err := w.c.Commit(message); err != nil {
+		return WorkflowResult{Err: fmt.Errorf("commit: %w", err)}
+	}
+	return WorkflowResult{Message: "committed changes"}
+}
+
 func (w *Workflows) AmendLast(newMsg string) WorkflowResult {
 	err := w.c.AmendCommit(newMsg)
 	if err != nil {
 		return WorkflowResult{Err: fmt.Errorf("amend: %w", err)}
 	}
 	return WorkflowResult{Message: "amended HEAD"}
+}
+
+// UncommitLast undoes the most recent commit, restoring its changes as
+// unstaged uncommitted changes. Like AmendLast and Commit, this deliberately
+// does not use stashAround: a mixed reset only touches the index and the
+// HEAD ref, never the working tree, so a dirty tree can't conflict with it —
+// and the whole point is to turn committed content back into uncommitted
+// changes, not stash anything away.
+func (w *Workflows) UncommitLast() WorkflowResult {
+	if err := w.c.UncommitLast(); err != nil {
+		return WorkflowResult{Err: fmt.Errorf("uncommit: %w", err)}
+	}
+	return WorkflowResult{Message: "uncommitted last commit"}
 }
 
 func (w *Workflows) SquashCommits(hashes []string) WorkflowResult {

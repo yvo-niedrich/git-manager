@@ -52,7 +52,7 @@ func TestApp_KeyRoutesToDialogNotPanel(t *testing.T) {
 	initialCursor := a.branches.cursor
 
 	// Push a menu with multiple items so 'j' moves the dialog cursor, not the panel.
-	a.dialogs.Push(NewContextMenu(BranchMenuItems(false, true, "")))
+	a.dialogs.Push(NewContextMenu(BranchMenuItems(false, true, false, "")))
 
 	a.Update(press("j"))
 

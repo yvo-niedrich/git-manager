@@ -9,7 +9,7 @@ import (
 
 type HintSet []struct{ Key, Desc string }
 
-func BranchHints(isRemote, isCurrent, hasUpstream bool) HintSet {
+func BranchHints(isRemote, isCurrent, hasUpstream, hasUncommittedChanges bool) HintSet {
 	base := HintSet{
 		{"tab", HintNextPanel},
 		{"j/k", HintNavigate},
@@ -19,7 +19,11 @@ func BranchHints(isRemote, isCurrent, hasUpstream bool) HintSet {
 	case isRemote:
 		base = append(base, HintSet{{"c", HintCheckout}, {"f", HintFetch}}...)
 	case isCurrent:
-		acts := HintSet{{"m", HintMerge}, {"r", HintRebase}, {"p", HintPush}}
+		acts := HintSet{}
+		if hasUncommittedChanges {
+			acts = append(acts, struct{ Key, Desc string }{"c", HintCommit})
+		}
+		acts = append(acts, HintSet{{"m", HintMerge}, {"r", HintRebase}, {"p", HintPush}}...)
 		if hasUpstream {
 			acts = append(acts, struct{ Key, Desc string }{"l", HintPull})
 		}
@@ -55,7 +59,7 @@ func CommitHints(isHead, multiSelect bool) HintSet {
 		{"R", HintRevert},
 	}
 	if isHead {
-		base = append(base, struct{ Key, Desc string }{"a", HintAmend})
+		base = append(base, HintSet{{"a", HintAmend}, {"u", HintUncommit}}...)
 	} else {
 		base = append(base, struct{ Key, Desc string }{"d", HintDrop})
 	}

@@ -47,6 +47,8 @@ type refreshBranchesMsg struct {
 
 type prLoadedMsg struct{ prs map[string]int }
 
+type dirtyStatusMsg struct{ dirty bool }
+
 type App struct {
 	branches    BranchesModel
 	commits     CommitsModel
@@ -59,6 +61,7 @@ type App struct {
 	termW       int
 	termH       int
 	prs         map[string]int
+	dirty       bool // uncommitted changes present; refreshed alongside branches/commits
 	statusMsg   string
 	statusIsErr bool
 	statusGen   int
@@ -86,6 +89,7 @@ func NewApp(repoRoot string) (*App, error) {
 		wf:       wf,
 		client:   client,
 		repoRoot: repoRoot,
+		dirty:    client.HasUncommittedChanges(),
 	}
 	a.branches.focused = true
 
@@ -195,6 +199,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.branches.SetPRs(msg.prs)
 		return a, nil
 
+	case dirtyStatusMsg:
+		a.dirty = msg.dirty
+		return a, nil
+
 	case BranchPickerSubmitMsg:
 		source, target := msg.Source, msg.Target
 		switch msg.Action {
@@ -238,6 +246,15 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		name, from := msg.Name, msg.From
 		return a, a.runWorkflow(func() git.WorkflowResult {
 			return a.wf.CreateBranch(name, from)
+		})
+
+	case CommitPreviewSubmitMsg:
+		a.dialogs.Push(NewCommitMessageDialog())
+		return a, nil
+
+	case CommitMessageSubmitMsg:
+		return a, a.runWorkflow(func() git.WorkflowResult {
+			return a.wf.Commit(msg.Message)
 		})
 	}
 
@@ -299,7 +316,7 @@ func (a *App) renderStatusBar() string {
 			isRemote, isCurrent = sel.IsRemote, sel.IsCurrent
 			hasUpstream = !sel.IsRemote && sel.Upstream != ""
 		}
-		hints = ui.BranchHints(isRemote, isCurrent, hasUpstream)
+		hints = ui.BranchHints(isRemote, isCurrent, hasUpstream, isCurrent && a.dirty)
 	case panelCommits:
 		isHead := false
 		if sel := a.commits.Selected(); sel != nil {
@@ -361,7 +378,7 @@ func (a *App) openContextMenu() tea.Cmd {
 		if sel == nil {
 			return nil
 		}
-		items = BranchMenuItems(sel.IsRemote, sel.IsCurrent, sel.Upstream)
+		items = BranchMenuItems(sel.IsRemote, sel.IsCurrent, sel.IsCurrent && a.dirty, sel.Upstream)
 	case panelCommits, panelDetail:
 		sel := a.commits.Selected()
 		if sel == nil {
@@ -390,7 +407,7 @@ func (a *App) tryDirectShortcut(keyStr string) tea.Cmd {
 		if sel == nil {
 			return nil
 		}
-		items = BranchMenuItems(sel.IsRemote, sel.IsCurrent, sel.Upstream)
+		items = BranchMenuItems(sel.IsRemote, sel.IsCurrent, sel.IsCurrent && a.dirty, sel.Upstream)
 	case panelCommits:
 		reserved = commitOwnedKeys
 		sel := a.commits.Selected()
@@ -494,6 +511,16 @@ func (a *App) handleMenuAction(action MenuAction) tea.Cmd {
 		if sel := a.commits.Selected(); sel != nil {
 			a.dialogs.Push(NewAmendDialog(sel.Subject))
 		}
+	case ActionUncommit:
+		if sel := a.commits.Selected(); sel != nil {
+			short := sel.ShortHash
+			a.dialogs.Push(NewConfirmDialog(
+				fmt.Sprintf(ui.ConfirmUncommitFmt, short),
+				func() tea.Cmd {
+					return a.runWorkflow(func() git.WorkflowResult { return a.wf.UncommitLast() })
+				},
+			))
+		}
 	case ActionSquash:
 		hashes := a.commits.SelectedHashes()
 		if len(hashes) < 2 {
@@ -508,6 +535,19 @@ func (a *App) handleMenuAction(action MenuAction) tea.Cmd {
 		if sel := a.branches.Selected(); sel != nil {
 			a.dialogs.Push(NewBranchDialog(sel.Name, a.branches.LocalNames()))
 		}
+	case ActionCommit:
+		status, err := a.client.Status()
+		if err != nil {
+			return a.setStatus(err.Error(), true)
+		}
+		title, paths := ui.CommitPreviewTitleUntracked, status.Untracked
+		if len(status.Tracked) > 0 {
+			title, paths = ui.CommitPreviewTitleTracked, status.Tracked
+		}
+		if len(paths) == 0 {
+			return a.setStatus("nothing to commit", true)
+		}
+		a.dialogs.Push(NewCommitPreviewDialog(title, paths, a.termH))
 	}
 	return nil
 }
@@ -576,6 +616,9 @@ func (a *App) refreshAll() tea.Cmd {
 		func() tea.Msg {
 			commits, err := client.ListCommits(ref, 200)
 			return loadCommitsMsg{ref: ref, commits: commits, err: err}
+		},
+		func() tea.Msg {
+			return dirtyStatusMsg{dirty: client.HasUncommittedChanges()}
 		},
 	)
 }

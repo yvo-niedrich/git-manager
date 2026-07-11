@@ -96,6 +96,63 @@ func (c *Client) HasUncommittedChanges() bool {
 	return err == nil && strings.TrimSpace(out) != ""
 }
 
+// StatusResult splits uncommitted changes into paths git already tracks
+// (modified, deleted, renamed) and paths it doesn't know about yet.
+type StatusResult struct {
+	Tracked   []string
+	Untracked []string
+}
+
+// Status parses "git status --porcelain=v1 -z" (NUL-separated so paths with
+// spaces or special characters are not mangled by shell-style quoting).
+func (c *Client) Status() (StatusResult, error) {
+	out, err := c.run("status", "--porcelain=v1", "-z")
+	if err != nil {
+		return StatusResult{}, err
+	}
+	var result StatusResult
+	fields := strings.Split(out, "\x00")
+	for i := 0; i < len(fields); i++ {
+		entry := fields[i]
+		if len(entry) < 4 {
+			continue
+		}
+		x, y := entry[0], entry[1]
+		path := entry[3:]
+		if x == '?' && y == '?' {
+			result.Untracked = append(result.Untracked, path)
+			continue
+		}
+		result.Tracked = append(result.Tracked, path)
+		if x == 'R' || x == 'C' {
+			i++ // renames/copies carry the old path as a second NUL-terminated field
+		}
+	}
+	return result, nil
+}
+
+// StageTrackedChanges stages modifications to files git already tracks
+// (equivalent to "git add -u"), leaving untracked files alone.
+func (c *Client) StageTrackedChanges() error {
+	_, err := c.run("add", "-u")
+	return err
+}
+
+// StagePaths stages the given paths explicitly (used for untracked files).
+func (c *Client) StagePaths(paths []string) error {
+	if len(paths) == 0 {
+		return nil
+	}
+	args := append([]string{"add", "--"}, paths...)
+	_, err := c.run(args...)
+	return err
+}
+
+func (c *Client) Commit(message string) error {
+	_, err := c.run("commit", "-m", message)
+	return err
+}
+
 func (c *Client) ListBranches() ([]Branch, error) {
 	lines, err := c.runLines("branch", "-a", "--format=%(refname)\t%(HEAD)\t%(upstream:short)")
 	if err != nil {
@@ -300,6 +357,14 @@ func (c *Client) DropCommit(hash string) error {
 
 func (c *Client) AmendCommit(newMessage string) error {
 	_, err := c.run("commit", "--amend", "-m", newMessage)
+	return err
+}
+
+// UncommitLast undoes the most recent commit via a mixed reset: HEAD moves
+// back one commit and the index is unstaged, but the working tree is left
+// untouched — so the commit's changes reappear as ordinary uncommitted changes.
+func (c *Client) UncommitLast() error {
+	_, err := c.run("reset", "HEAD^")
 	return err
 }
 

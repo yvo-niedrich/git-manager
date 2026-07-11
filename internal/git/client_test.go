@@ -1,6 +1,8 @@
 package git_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/yvo.niedrich/git-manager/internal/config"
@@ -185,5 +187,60 @@ func TestShowCommit_Body(t *testing.T) {
 	}
 	if detail.Body == "" {
 		t.Error("Body should not be empty for second commit")
+	}
+}
+
+// ── Status ────────────────────────────────────────────────────────────────────
+
+func TestStatus_TrackedAndUntracked(t *testing.T) {
+	root := testutil.MutableRepo(t)
+	c := git.NewClient(root, config.NewStatic())
+
+	if err := os.WriteFile(filepath.Join(root, "hello.txt"), []byte("hello\nworld\nmodified\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "new.txt"), []byte("new"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	status, err := c.Status()
+	if err != nil {
+		t.Fatalf("Status: %v", err)
+	}
+	if len(status.Tracked) != 1 || status.Tracked[0] != "hello.txt" {
+		t.Errorf("Tracked = %v, want [hello.txt]", status.Tracked)
+	}
+	if len(status.Untracked) != 1 || status.Untracked[0] != "new.txt" {
+		t.Errorf("Untracked = %v, want [new.txt]", status.Untracked)
+	}
+}
+
+func TestStatus_OnlyUntracked(t *testing.T) {
+	root := testutil.MutableRepo(t)
+	c := git.NewClient(root, config.NewStatic())
+
+	if err := os.WriteFile(filepath.Join(root, "new.txt"), []byte("new"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	status, err := c.Status()
+	if err != nil {
+		t.Fatalf("Status: %v", err)
+	}
+	if len(status.Tracked) != 0 {
+		t.Errorf("Tracked = %v, want none", status.Tracked)
+	}
+	if len(status.Untracked) != 1 || status.Untracked[0] != "new.txt" {
+		t.Errorf("Untracked = %v, want [new.txt]", status.Untracked)
+	}
+}
+
+func TestStatus_Clean(t *testing.T) {
+	status, err := fixture(t).Status()
+	if err != nil {
+		t.Fatalf("Status: %v", err)
+	}
+	if len(status.Tracked) != 0 || len(status.Untracked) != 0 {
+		t.Errorf("Status = %+v, want empty on a clean repo", status)
 	}
 }

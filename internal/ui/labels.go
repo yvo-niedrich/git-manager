@@ -57,19 +57,20 @@ const (
 	MenuCheckoutRemote     = "Checkout (create local tracking)"
 	MenuFetchRemote        = "Fetch remote"
 	MenuCheckout           = "Checkout"
+	MenuCommit             = "Commit changes…"
 	MenuMerge              = "Merge into …"
 	MenuRebase             = "Rebase onto …"
 	MenuPush               = "Push to remote"
 	MenuForcePush          = "Force-push to remote"
 	MenuPullFromFmt        = "Pull from %s"
 	MenuDeleteBranch       = "Delete branch"
-	MenuDeleteRemoteBranch = "Delete Remote branch"
 	MenuNewBranch          = "New branch from here…"
 	MenuCherryPick         = "Cherry-pick onto current branch"
 	MenuRevert             = "Revert (create revert commit)"
 	MenuCopyHash           = "Copy commit hash"
 	MenuDropCommit         = "Drop commit from history"
 	MenuAmend              = "Amend commit message"
+	MenuUncommit           = "Uncommit (keep changes)"
 	MenuSquash             = "Squash with next commit"
 )
 
@@ -80,6 +81,7 @@ const (
 	ConfirmForceDeleteBranch = "Branch has unmerged commits. Force delete anyway?"
 	ConfirmForcePushFmt      = "Force-push %q to origin? This overwrites remote history."
 	ConfirmDropCommitFmt     = "Drop commit %s from history?"
+	ConfirmUncommitFmt       = "Uncommit %s? Its changes will become uncommitted."
 )
 
 // ── Amend dialog ──────────────────────────────────────────────────────────────
@@ -87,6 +89,15 @@ const (
 const (
 	AmendTitle       = "Amend commit message:"
 	AmendPlaceholder = "Commit message..."
+)
+
+// ── Commit dialogs ────────────────────────────────────────────────────────────
+
+const (
+	CommitPreviewTitleTracked   = "Commit tracked changes:"
+	CommitPreviewTitleUntracked = "Commit untracked files:"
+	CommitMessageTitle          = "Commit message:"
+	CommitMessagePlaceholder    = "Commit message..."
 )
 
 // ── New branch dialog ─────────────────────────────────────────────────────────
@@ -107,6 +118,8 @@ const (
 	HintCancel  = "cancel"
 	HintApply   = "apply"
 	HintClear   = "clear"
+	HintSelect  = "select"
+	HintNewline = "newline"
 )
 
 // ── Status bar hint descriptions ──────────────────────────────────────────────
@@ -116,6 +129,7 @@ const (
 	HintNavigate        = "navigate"
 	HintMenu            = "menu"
 	HintCheckout        = "checkout"
+	HintCommit          = "commit"
 	HintFetch           = "fetch"
 	HintMerge           = "merge"
 	HintRebase          = "rebase"
@@ -130,6 +144,7 @@ const (
 	HintToggle          = "toggle"
 	HintSquash          = "squash"
 	HintAmend           = "amend"
+	HintUncommit        = "uncommit"
 	HintDrop            = "drop"
 	HintCherryPick      = "cherry-pick"
 	HintRevert          = "revert"

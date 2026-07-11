@@ -21,7 +21,7 @@ func TestDialogStack_EmptyNotOpen(t *testing.T) {
 
 func TestDialogStack_OpenAfterPush(t *testing.T) {
 	var ds dialogStack
-	ds.Push(NewContextMenu(BranchMenuItems(false, false, "")))
+	ds.Push(NewContextMenu(BranchMenuItems(false, false, false, "")))
 	if !ds.IsOpen() {
 		t.Error("stack should be open after Push")
 	}
@@ -29,7 +29,7 @@ func TestDialogStack_OpenAfterPush(t *testing.T) {
 
 func TestDialogStack_ActiveIsHighestPriority(t *testing.T) {
 	var ds dialogStack
-	ds.Push(NewContextMenu(BranchMenuItems(false, false, ""))) // priority 10
+	ds.Push(NewContextMenu(BranchMenuItems(false, false, false, ""))) // priority 10
 	ds.Push(NewConfirmDialog("sure?", func() tea.Cmd { return nil })) // priority 20
 
 	if _, ok := ds.Active().(*ConfirmModel); !ok {
@@ -39,7 +39,7 @@ func TestDialogStack_ActiveIsHighestPriority(t *testing.T) {
 
 func TestDialogStack_UpdateRoutesToActive(t *testing.T) {
 	var ds dialogStack
-	ds.Push(NewContextMenu(BranchMenuItems(false, false, ""))) // priority 10
+	ds.Push(NewContextMenu(BranchMenuItems(false, false, false, ""))) // priority 10
 	confirm := NewConfirmDialog("sure?", func() tea.Cmd { return nil })
 	ds.Push(confirm) // priority 20
 
@@ -56,7 +56,7 @@ func TestDialogStack_UpdateRoutesToActive(t *testing.T) {
 
 func TestDialogStack_CloseRemovesFromStack(t *testing.T) {
 	var ds dialogStack
-	ds.Push(NewContextMenu(BranchMenuItems(false, false, "")))
+	ds.Push(NewContextMenu(BranchMenuItems(false, false, false, "")))
 
 	ds.Update(press("esc"))
 
@@ -67,7 +67,7 @@ func TestDialogStack_CloseRemovesFromStack(t *testing.T) {
 
 func TestDialogStack_LowerPriorityRemainsAfterHighCloses(t *testing.T) {
 	var ds dialogStack
-	ds.Push(NewContextMenu(BranchMenuItems(false, false, ""))) // priority 10
+	ds.Push(NewContextMenu(BranchMenuItems(false, false, false, ""))) // priority 10
 	ds.Push(NewConfirmDialog("sure?", func() tea.Cmd { return nil })) // priority 20
 
 	ds.Update(press("n")) // close confirm
@@ -80,7 +80,7 @@ func TestDialogStack_LowerPriorityRemainsAfterHighCloses(t *testing.T) {
 // ── ContextMenuModel ──────────────────────────────────────────────────────────
 
 func TestContextMenu_EscCloses(t *testing.T) {
-	m := NewContextMenu(BranchMenuItems(false, false, ""))
+	m := NewContextMenu(BranchMenuItems(false, false, false, ""))
 	next, cmd := m.DialogUpdate(press("esc"))
 	if next != nil {
 		t.Error("esc: expected nil content (close signal)")
@@ -91,7 +91,7 @@ func TestContextMenu_EscCloses(t *testing.T) {
 }
 
 func TestContextMenu_QCloses(t *testing.T) {
-	m := NewContextMenu(BranchMenuItems(false, false, ""))
+	m := NewContextMenu(BranchMenuItems(false, false, false, ""))
 	next, _ := m.DialogUpdate(press("q"))
 	if next != nil {
 		t.Error("q: expected nil content (close signal)")
@@ -99,7 +99,7 @@ func TestContextMenu_QCloses(t *testing.T) {
 }
 
 func TestContextMenu_EnterSelectsCursorItem(t *testing.T) {
-	m := NewContextMenu(BranchMenuItems(false, false, "")) // first item: Checkout
+	m := NewContextMenu(BranchMenuItems(false, false, false, "")) // first item: Checkout
 	next, cmd := m.DialogUpdate(press("enter"))
 	if next != nil {
 		t.Error("enter: expected nil content (close signal)")
@@ -115,7 +115,7 @@ func TestContextMenu_EnterSelectsCursorItem(t *testing.T) {
 }
 
 func TestContextMenu_ShortcutKey(t *testing.T) {
-	m := NewContextMenu(BranchMenuItems(false, false, ""))
+	m := NewContextMenu(BranchMenuItems(false, false, false, ""))
 	next, cmd := m.DialogUpdate(press("m")) // 'm' → ActionMerge
 	if next != nil {
 		t.Error("shortcut: expected nil content (close signal)")
@@ -131,7 +131,7 @@ func TestContextMenu_ShortcutKey(t *testing.T) {
 }
 
 func TestContextMenu_CursorNavigation(t *testing.T) {
-	m := NewContextMenu(BranchMenuItems(false, false, ""))
+	m := NewContextMenu(BranchMenuItems(false, false, false, ""))
 	if m.cursor != 0 {
 		t.Fatalf("initial cursor = %d, want 0", m.cursor)
 	}
@@ -161,7 +161,7 @@ func hasAction(items []MenuItem, action MenuAction) bool {
 }
 
 func TestBranchMenuItems_CurrentBranchExcludesCheckoutDelete(t *testing.T) {
-	items := BranchMenuItems(false, true, "")
+	items := BranchMenuItems(false, true, false, "")
 	// Checkout and Delete cannot target the branch you are on. Merge and Rebase
 	// remain available: the branch picker chooses the counterpart branch, so
 	// "merge current into <target>" / "rebase current onto <target>" are valid.
@@ -178,7 +178,7 @@ func TestBranchMenuItems_CurrentBranchExcludesCheckoutDelete(t *testing.T) {
 }
 
 func TestBranchMenuItems_NonCurrentBranchIncludesMergeRebaseDelete(t *testing.T) {
-	items := BranchMenuItems(false, false, "")
+	items := BranchMenuItems(false, false, false, "")
 	for _, want := range []MenuAction{ActionCheckout, ActionMerge, ActionRebase, ActionDeleteBranch} {
 		if !hasAction(items, want) {
 			t.Errorf("non-current-branch menu should contain action %v", want)
@@ -187,11 +187,49 @@ func TestBranchMenuItems_NonCurrentBranchIncludesMergeRebaseDelete(t *testing.T)
 }
 
 func TestBranchMenuItems_CurrentBranchRetainsPushForcePush(t *testing.T) {
-	items := BranchMenuItems(false, true, "")
+	items := BranchMenuItems(false, true, false, "")
 	for _, want := range []MenuAction{ActionPush, ActionForcePush} {
 		if !hasAction(items, want) {
 			t.Errorf("current-branch menu should contain action %v", want)
 		}
+	}
+}
+
+func TestBranchMenuItems_CommitOnlyOnCurrentWithUncommittedChanges(t *testing.T) {
+	if items := BranchMenuItems(false, true, true, ""); !hasAction(items, ActionCommit) {
+		t.Error("current branch with uncommitted changes should offer ActionCommit")
+	}
+	if items := BranchMenuItems(false, true, false, ""); hasAction(items, ActionCommit) {
+		t.Error("current branch without uncommitted changes should not offer ActionCommit")
+	}
+	if items := BranchMenuItems(false, false, true, ""); hasAction(items, ActionCommit) {
+		t.Error("non-current branch should never offer ActionCommit, even if the tree is dirty")
+	}
+}
+
+// ── CommitMenuItems ───────────────────────────────────────────────────────────
+
+func TestCommitMenuItems_HeadIncludesAmendAndUncommit(t *testing.T) {
+	items := CommitMenuItems(true)
+	for _, want := range []MenuAction{ActionAmend, ActionUncommit} {
+		if !hasAction(items, want) {
+			t.Errorf("HEAD commit menu should contain action %v", want)
+		}
+	}
+	if hasAction(items, ActionDrop) {
+		t.Error("HEAD commit menu should not contain ActionDrop")
+	}
+}
+
+func TestCommitMenuItems_NonHeadExcludesAmendAndUncommit(t *testing.T) {
+	items := CommitMenuItems(false)
+	for _, banned := range []MenuAction{ActionAmend, ActionUncommit} {
+		if hasAction(items, banned) {
+			t.Errorf("non-HEAD commit menu should not contain action %v", banned)
+		}
+	}
+	if !hasAction(items, ActionDrop) {
+		t.Error("non-HEAD commit menu should contain ActionDrop")
 	}
 }
 

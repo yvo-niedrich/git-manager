@@ -14,6 +14,12 @@ func press(k string) tea.KeyMsg {
 	switch k {
 	case "enter":
 		return tea.KeyMsg{Type: tea.KeyEnter}
+	case "alt+enter":
+		return tea.KeyMsg{Type: tea.KeyEnter, Alt: true}
+	case "left":
+		return tea.KeyMsg{Type: tea.KeyLeft}
+	case "right":
+		return tea.KeyMsg{Type: tea.KeyRight}
 	case "esc":
 		return tea.KeyMsg{Type: tea.KeyEsc}
 	case "tab":

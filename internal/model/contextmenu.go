@@ -29,6 +29,8 @@ const (
 	ActionSquash
 	ActionCopyHash
 	ActionNewBranch
+	ActionCommit
+	ActionUncommit
 )
 
 type MenuItem struct {
@@ -36,6 +38,7 @@ type MenuItem struct {
 	Action   MenuAction
 	Key      string
 	MenuOnly bool // if true, key is not registered as a panel-level direct shortcut
+	NewGroup bool // if true, a blank line is rendered before this item
 }
 
 type ContextMenuModel struct {
@@ -47,49 +50,75 @@ type MenuSelectedMsg struct {
 	Action MenuAction
 }
 
-func BranchMenuItems(isRemote, isCurrent bool, upstream string) []MenuItem {
+func BranchMenuItems(isRemote, isCurrent, hasUncommittedChanges bool, upstream string) []MenuItem {
 	if isRemote {
 		return []MenuItem{
 			{Label: ui.MenuCheckoutRemote, Action: ActionCheckoutRemote, Key: "c"},
-			{Label: ui.MenuFetchRemote, Action: ActionFetch, Key: "f"},
+			{Label: ui.MenuFetchRemote, Action: ActionFetch, Key: "f", NewGroup: true},
 		}
 	}
+
 	var items []MenuItem
-	if !isCurrent {
+	switch {
+	case !isCurrent:
 		items = append(items, MenuItem{Label: ui.MenuCheckout, Action: ActionCheckout, Key: "c"})
+	case hasUncommittedChanges:
+		items = append(items, MenuItem{Label: ui.MenuCommit, Action: ActionCommit, Key: "c"})
 	}
-	items = append(items,
-		MenuItem{Label: ui.MenuMerge, Action: ActionMerge, Key: "m"},
-		MenuItem{Label: ui.MenuRebase, Action: ActionRebase, Key: "r"},
-		MenuItem{Label: ui.MenuPush, Action: ActionPush, Key: "p"},
-		MenuItem{Label: ui.MenuForcePush, Action: ActionForcePush, Key: "F", MenuOnly: true},
-	)
+
+	// Sync with remote.
+	syncStart := len(items)
 	if upstream != "" {
 		items = append(items, MenuItem{Label: fmt.Sprintf(ui.MenuPullFromFmt, upstream), Action: ActionPull, Key: "l"})
 	}
-	items = append(items, MenuItem{Label: ui.MenuNewBranch, Action: ActionNewBranch, Key: "n"})
+	items = append(items,
+		MenuItem{Label: ui.MenuPush, Action: ActionPush, Key: "p"},
+		MenuItem{Label: ui.MenuForcePush, Action: ActionForcePush, Key: "F", MenuOnly: true},
+	)
+	items[syncStart].NewGroup = syncStart > 0
+
+	// Integrate with another branch.
+	integrateStart := len(items)
+	items = append(items,
+		MenuItem{Label: ui.MenuMerge, Action: ActionMerge, Key: "m"},
+		MenuItem{Label: ui.MenuRebase, Action: ActionRebase, Key: "r"},
+	)
+	items[integrateStart].NewGroup = true
+
+	// Create.
+	items = append(items, MenuItem{Label: ui.MenuNewBranch, Action: ActionNewBranch, Key: "n", NewGroup: true})
+
+	// Destructive.
 	if !isCurrent {
-		label := ui.MenuDeleteBranch
-		if isRemote {
-			label = ui.MenuDeleteRemoteBranch
-		}
-		items = append(items, MenuItem{Label: label, Action: ActionDeleteBranch, Key: "D"})
+		items = append(items, MenuItem{Label: ui.MenuDeleteBranch, Action: ActionDeleteBranch, Key: "D", NewGroup: true})
 	}
 	return items
 }
 
 func CommitMenuItems(isHead bool) []MenuItem {
+	// Inspect.
 	items := []MenuItem{
-		{Label: ui.MenuCherryPick, Action: ActionCherryPick, Key: "p"},
-		{Label: ui.MenuRevert, Action: ActionRevert, Key: "R"},
 		{Label: ui.MenuCopyHash, Action: ActionCopyHash, Key: "y"},
 	}
-	if !isHead {
-		items = append(items, MenuItem{Label: ui.MenuDropCommit, Action: ActionDrop, Key: "d"})
+
+	// Apply elsewhere (non-destructive to history).
+	items = append(items,
+		MenuItem{Label: ui.MenuCherryPick, Action: ActionCherryPick, Key: "p", NewGroup: true},
+		MenuItem{Label: ui.MenuRevert, Action: ActionRevert, Key: "R"},
+	)
+
+	// Rewrite history.
+	if isHead {
+		items = append(items,
+			MenuItem{Label: ui.MenuAmend, Action: ActionAmend, Key: "a", NewGroup: true},
+			MenuItem{Label: ui.MenuUncommit, Action: ActionUncommit, Key: "u"},
+		)
+		items = append(items, MenuItem{Label: ui.MenuSquash, Action: ActionSquash, Key: "s"})
 	} else {
-		items = append(items, MenuItem{Label: ui.MenuAmend, Action: ActionAmend, Key: "a"})
+		items = append(items, MenuItem{Label: ui.MenuSquash, Action: ActionSquash, Key: "s", NewGroup: true})
+		// Destructive.
+		items = append(items, MenuItem{Label: ui.MenuDropCommit, Action: ActionDrop, Key: "d", NewGroup: true})
 	}
-	items = append(items, MenuItem{Label: ui.MenuSquash, Action: ActionSquash, Key: "s"})
 	return items
 }
 
@@ -132,6 +161,9 @@ func (m ContextMenuModel) View() string {
 	var sb strings.Builder
 	sb.WriteString(ui.TitleStyle(true).Render(ui.MenuTitle) + "\n\n")
 	for i, item := range m.items {
+		if item.NewGroup && i > 0 {
+			sb.WriteString("\n")
+		}
 		keyPart := ui.KeyHintStyle.Render("[" + item.Key + "]")
 		labelPart := ui.DescHintStyle.Render(" " + item.Label)
 		line := keyPart + labelPart
