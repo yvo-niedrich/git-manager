@@ -191,6 +191,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case refreshBranchesMsg:
 		if msg.err == nil {
 			a.branches.SetBranches(msg.branches)
+			ref := a.client.CurrentBranch()
+			if sel := a.branches.Selected(); sel != nil {
+				ref = sel.FullRef()
+			}
+			return a, a.loadCommitsCmd(ref)
 		}
 		return a, nil
 
@@ -604,18 +609,10 @@ func (a *App) runWorkflow(fn func() git.WorkflowResult) tea.Cmd {
 
 func (a *App) refreshAll() tea.Cmd {
 	client := a.client
-	ref := a.commits.branchRef
-	if ref == "" {
-		ref = a.client.CurrentBranch()
-	}
 	return tea.Batch(
 		func() tea.Msg {
 			branches, err := client.ListBranches()
 			return refreshBranchesMsg{branches: branches, err: err}
-		},
-		func() tea.Msg {
-			commits, err := client.ListCommits(ref, 200)
-			return loadCommitsMsg{ref: ref, commits: commits, err: err}
 		},
 		func() tea.Msg {
 			return dirtyStatusMsg{dirty: client.HasUncommittedChanges()}
