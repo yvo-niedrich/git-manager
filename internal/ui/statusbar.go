@@ -17,7 +17,7 @@ func BranchHints(isRemote, isCurrent, hasUpstream, hasUncommittedChanges bool) H
 	}
 	switch {
 	case isRemote:
-		base = append(base, HintSet{{"c", HintCheckout}, {"f", HintFetch}}...)
+		base = append(base, HintSet{{"c", HintCheckout}}...)
 	case isCurrent:
 		acts := HintSet{}
 		if hasUncommittedChanges {
@@ -38,7 +38,7 @@ func BranchHints(isRemote, isCurrent, hasUpstream, hasUncommittedChanges bool) H
 		acts = append(acts, struct{ Key, Desc string }{"n", HintNewBranch})
 		base = append(base, acts...)
 	}
-	return append(base, HintSet{{"/", HintFilter}, {"q", HintQuit}}...)
+	return append(base, HintSet{{"/", HintFilter}, {"f", HintFetch}, {"q", HintQuit}}...)
 }
 
 func CommitHints(isHead, multiSelect bool) HintSet {
@@ -63,7 +63,7 @@ func CommitHints(isHead, multiSelect bool) HintSet {
 	} else {
 		base = append(base, struct{ Key, Desc string }{"d", HintDrop})
 	}
-	return append(base, HintSet{{"s", HintMultiSelect}, {"/", HintFilter}, {"q", HintQuit}}...)
+	return append(base, HintSet{{"s", HintMultiSelect}, {"/", HintFilter}, {"f", HintFetch}, {"q", HintQuit}}...)
 }
 
 var FilterHints = HintSet{
@@ -76,6 +76,7 @@ var DetailHints = HintSet{
 	{"tab", HintNextPanel},
 	{"j/k", HintScroll},
 	{"Esc", HintCancel},
+	{"f", HintFetch},
 	{"q", HintQuit},
 }
 

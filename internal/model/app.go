@@ -156,6 +156,8 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, nil
 		case "enter", "x":
 			return a, a.openContextMenu()
+		case "f":
+			return a, a.handleMenuAction(ActionFetch)
 		}
 		if cmd := a.tryDirectShortcut(msg.String()); cmd != nil {
 			return a, cmd
