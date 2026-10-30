@@ -69,4 +69,5 @@ git checkout -q main
 
 # Atomic rename into place. If another process already won the race, discard
 # our work tree and exit cleanly — the repo is already there.
-mv "$WORK" "$REPO" 2>/dev/null && trap - EXIT || true
+# mv nests into an existing directory; rename(2) fails on it instead.
+perl -e 'rename $ARGV[0], $ARGV[1] or exit 1' "$WORK" "$REPO" && trap - EXIT || true
