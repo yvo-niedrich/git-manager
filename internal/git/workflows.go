@@ -3,6 +3,7 @@ package git
 import (
 	"fmt"
 	"strings"
+	"time"
 )
 
 type WorkflowResult struct {
@@ -276,6 +277,15 @@ func (w *Workflows) Fetch(remote string) WorkflowResult {
 		return WorkflowResult{Err: err}
 	}
 	return WorkflowResult{Message: "fetched " + remote}
+}
+
+// FetchIfStale fetches remote when it exists and its last fetch is older than the configured AutoFetchAfter.
+// The bool reports whether a fetch ran.
+func (w *Workflows) FetchIfStale(remote string) (WorkflowResult, bool) {
+	if !w.c.HasRemote(remote) || time.Since(w.c.LastFetch()) < w.c.cfg.AutoFetchAfter() {
+		return WorkflowResult{}, false
+	}
+	return w.Fetch(remote), true
 }
 
 // Pull updates branch from its upstream (e.g. "origin/main").

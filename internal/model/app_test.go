@@ -244,3 +244,18 @@ func TestApp_WindowSizeMsgRelayouts(t *testing.T) {
 		t.Errorf("term size = %d×%d, want 200×50", a.termW, a.termH)
 	}
 }
+
+// ── async ordering ────────────────────────────────────────────────────────────
+
+func TestApp_StaleCommitsResponseIsDropped(t *testing.T) {
+	a := fixtureApp(t)
+	stale := a.loadCommitsCmd("main")
+	latest := a.loadCommitsCmd("feature/my-feature")
+
+	a.Update(latest())
+	a.Update(stale())
+
+	if a.commits.branchRef != "feature/my-feature" {
+		t.Errorf("branchRef = %q, want the latest request's ref", a.commits.branchRef)
+	}
+}

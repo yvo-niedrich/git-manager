@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/yvo.niedrich/git-manager/internal/config"
 	"github.com/yvo.niedrich/git-manager/internal/git"
@@ -130,5 +131,41 @@ func TestWorkflowsUncommitLast_FailsOnRootCommit(t *testing.T) {
 	res := wf.UncommitLast()
 	if res.OK() {
 		t.Fatal("expected error when uncommitting the root commit")
+	}
+}
+
+func TestWorkflowsFetchIfStale(t *testing.T) {
+	root := testutil.MutableRepo(t)
+	c := git.NewClient(root, config.NewStatic())
+	wf := git.NewWorkflows(c)
+	fetchHead := filepath.Join(root, ".git", "FETCH_HEAD")
+
+	if !c.LastFetch().IsZero() {
+		t.Fatalf("LastFetch = %v, want zero before any fetch", c.LastFetch())
+	}
+	if _, ran := wf.FetchIfStale("origin"); !ran {
+		t.Error("never fetched: want fetch to run")
+	}
+
+	if err := os.WriteFile(fetchHead, nil, 0644); err != nil {
+		t.Fatal(err)
+	}
+	if _, ran := wf.FetchIfStale("origin"); ran {
+		t.Error("fresh FETCH_HEAD: want fetch skipped")
+	}
+
+	old := time.Now().Add(-config.NewStatic().AutoFetchAfter() - time.Hour)
+	if err := os.Chtimes(fetchHead, old, old); err != nil {
+		t.Fatal(err)
+	}
+	if _, ran := wf.FetchIfStale("origin"); !ran {
+		t.Error("13h-old FETCH_HEAD: want fetch to run")
+	}
+
+	if err := exec.Command("git", "-C", root, "remote", "remove", "origin").Run(); err != nil {
+		t.Fatal(err)
+	}
+	if _, ran := wf.FetchIfStale("origin"); ran {
+		t.Error("no origin remote: want fetch skipped")
 	}
 }

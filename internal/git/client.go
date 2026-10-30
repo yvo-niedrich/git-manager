@@ -2,7 +2,9 @@ package git
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -430,6 +432,27 @@ func (c *Client) ForcePush(remote, branch string) error {
 func (c *Client) Fetch(remote string) error {
 	_, err := c.run("fetch", remote)
 	return err
+}
+
+func (c *Client) HasRemote(remote string) bool {
+	_, err := c.run("remote", "get-url", remote)
+	return err == nil
+}
+
+// LastFetch returns the mtime of FETCH_HEAD, or the zero time if the repo was never fetched.
+func (c *Client) LastFetch() time.Time {
+	p, err := c.run("rev-parse", "--git-path", "FETCH_HEAD")
+	if err != nil {
+		return time.Time{}
+	}
+	if !filepath.IsAbs(p) {
+		p = filepath.Join(c.repoRoot, p)
+	}
+	info, err := os.Stat(p)
+	if err != nil {
+		return time.Time{}
+	}
+	return info.ModTime()
 }
 
 // Pull runs "git pull" on the current branch using its configured upstream.

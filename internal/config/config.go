@@ -11,6 +11,8 @@
 // depend on it without creating a cycle.
 package config
 
+import "time"
+
 // PullStrategy selects how `git pull` reconciles divergent upstream changes.
 type PullStrategy string
 
@@ -31,4 +33,7 @@ func (s PullStrategy) String() string { return string(s) }
 type Config interface {
 	// PullStrategy returns the configured strategy for `git pull`.
 	PullStrategy() PullStrategy
+
+	// AutoFetchAfter returns how old the last fetch may be before startup fetches again.
+	AutoFetchAfter() time.Duration
 }

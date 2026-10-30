@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -30,17 +31,20 @@ type WorkflowResultMsg struct {
 type clearStatusMsg struct{ gen int }
 
 type loadCommitsMsg struct {
+	gen     int
 	ref     string
 	commits []git.Commit
 	err     error
 }
 
 type loadDetailMsg struct {
+	gen    int
 	detail git.CommitDetail
 	err    error
 }
 
 type refreshBranchesMsg struct {
+	gen      int
 	branches []git.Branch
 	err      error
 }
@@ -65,6 +69,10 @@ type App struct {
 	statusMsg   string
 	statusIsErr bool
 	statusGen   int
+	commitsGen  int
+	detailGen   int
+	branchesGen int
+	gitMu       sync.Mutex // serialises workflows; concurrent git writes fail on index/ref locks
 }
 
 func NewApp(repoRoot string) (*App, error) {
@@ -111,7 +119,7 @@ func NewApp(repoRoot string) (*App, error) {
 
 func (a *App) Init() tea.Cmd {
 	title := filepath.Base(os.Args[0]) + ": " + filepath.Base(a.repoRoot)
-	return tea.Batch(tea.SetWindowTitle(title), a.loadPRsCmd())
+	return tea.Batch(tea.SetWindowTitle(title), a.loadPRsCmd(), a.autoFetchCmd())
 }
 
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -171,6 +179,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case loadCommitsMsg:
+		if msg.gen != a.commitsGen {
+			return a, nil
+		}
 		if msg.err != nil {
 			return a, a.setStatus(fmt.Sprintf(ui.ErrLoadCommitsFmt, msg.err.Error()), true)
 		}
@@ -182,6 +193,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case loadDetailMsg:
+		if msg.gen != a.detailGen {
+			return a, nil
+		}
 		if msg.err != nil {
 			return a, a.setStatus(fmt.Sprintf(ui.ErrLoadDetailFmt, msg.err.Error()), true)
 		}
@@ -189,7 +203,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case refreshBranchesMsg:
-		if msg.err == nil {
+		if msg.gen == a.branchesGen && msg.err == nil {
 			a.branches.SetBranches(msg.branches)
 			ref := a.client.CurrentBranch()
 			if sel := a.branches.Selected(); sel != nil {
@@ -577,9 +591,11 @@ func (a *App) handlePanelKey(msg tea.KeyMsg) tea.Cmd {
 
 func (a *App) loadCommitsCmd(ref string) tea.Cmd {
 	client := a.client
+	a.commitsGen++
+	gen := a.commitsGen
 	return func() tea.Msg {
 		commits, err := client.ListCommits(ref, 200)
-		return loadCommitsMsg{ref: ref, commits: commits, err: err}
+		return loadCommitsMsg{gen: gen, ref: ref, commits: commits, err: err}
 	}
 }
 
@@ -592,27 +608,46 @@ func (a *App) loadPRsCmd() tea.Cmd {
 
 func (a *App) loadDetailCmd(commit git.Commit) tea.Cmd {
 	client := a.client
+	a.detailGen++
+	gen := a.detailGen
 	return func() tea.Msg {
 		detail, err := client.ShowCommit(commit.Hash)
 		if err == nil {
 			detail.Tags = commit.Tags
 		}
-		return loadDetailMsg{detail: detail, err: err}
+		return loadDetailMsg{gen: gen, detail: detail, err: err}
+	}
+}
+
+func (a *App) autoFetchCmd() tea.Cmd {
+	wf := a.wf
+	return func() tea.Msg {
+		a.gitMu.Lock()
+		defer a.gitMu.Unlock()
+		res, ran := wf.FetchIfStale("origin")
+		if !ran {
+			return nil
+		}
+		return WorkflowResultMsg{Result: res}
 	}
 }
 
 func (a *App) runWorkflow(fn func() git.WorkflowResult) tea.Cmd {
 	return func() tea.Msg {
+		a.gitMu.Lock()
+		defer a.gitMu.Unlock()
 		return WorkflowResultMsg{Result: fn()}
 	}
 }
 
 func (a *App) refreshAll() tea.Cmd {
 	client := a.client
+	a.branchesGen++
+	gen := a.branchesGen
 	return tea.Batch(
 		func() tea.Msg {
 			branches, err := client.ListBranches()
-			return refreshBranchesMsg{branches: branches, err: err}
+			return refreshBranchesMsg{gen: gen, branches: branches, err: err}
 		},
 		func() tea.Msg {
 			return dirtyStatusMsg{dirty: client.HasUncommittedChanges()}
