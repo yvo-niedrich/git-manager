@@ -51,6 +51,7 @@ var (
 	HeadStyle            = lipgloss.NewStyle().Foreground(ColorHead).Bold(true)
 	TagStyle             = lipgloss.NewStyle().Foreground(ColorWarn).Bold(true)
 	RemoteStyle          = lipgloss.NewStyle().Foreground(ColorRemote)
+	GoneBranchStyle      = lipgloss.NewStyle().Foreground(ColorSubtle).Strikethrough(true)
 	SectionStyle         = lipgloss.NewStyle().Foreground(ColorSubtle).Bold(true)
 
 	StatusOKStyle  = lipgloss.NewStyle().Foreground(ColorSuccess)

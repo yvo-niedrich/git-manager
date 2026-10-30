@@ -268,10 +268,14 @@ func (m BranchesModel) View() string {
 			prefix = ui.HeadStyle.Render(ui.MarkerCurrentBranch)
 		}
 
-		label := b.Name
-		if b.IsRemote {
-			label = ui.RemoteStyle.Render(label)
+		nameStyle := lipgloss.NewStyle()
+		switch {
+		case b.IsRemote:
+			nameStyle = ui.RemoteStyle
+		case b.UpstreamGone:
+			nameStyle = ui.GoneBranchStyle
 		}
+		label := nameStyle.Render(b.Name)
 		text := fmt.Sprintf("%s%s", prefix, label)
 		visLen := lipgloss.Width(text)
 		if visLen > innerW {
@@ -280,11 +284,7 @@ func (m BranchesModel) View() string {
 			if over < len(truncated) {
 				truncated = truncated[:len(truncated)-over-1] + "…"
 			}
-			if b.IsRemote {
-				label = ui.RemoteStyle.Render(truncated)
-			} else {
-				label = truncated
-			}
+			label = nameStyle.Render(truncated)
 			text = fmt.Sprintf("%s%s", prefix, label)
 		}
 
@@ -305,6 +305,9 @@ func (m BranchesModel) View() string {
 			hintStr := ""
 			if !b.IsRemote && b.Upstream != "" {
 				hintStr = ui.MarkerUpstreamArrow + b.Upstream
+				if b.UpstreamGone {
+					hintStr += ui.MarkerUpstreamGone
+				}
 			}
 			prStr := ""
 			if prBadge != "" {

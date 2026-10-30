@@ -2,6 +2,7 @@ package git_test
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -242,5 +243,32 @@ func TestStatus_Clean(t *testing.T) {
 	}
 	if len(status.Tracked) != 0 || len(status.Untracked) != 0 {
 		t.Errorf("Status = %+v, want empty on a clean repo", status)
+	}
+}
+
+func TestListBranches_UpstreamGone(t *testing.T) {
+	root := testutil.MutableRepo(t)
+	c := git.NewClient(root, config.NewStatic())
+
+	branches, err := c.ListBranches()
+	if err != nil {
+		t.Fatalf("ListBranches: %v", err)
+	}
+	if b := findBranch(branches, "main", false); b == nil || b.UpstreamGone {
+		t.Fatalf("main before prune: %+v, want UpstreamGone false", b)
+	}
+
+	if err := exec.Command("git", "-C", root, "update-ref", "-d", "refs/remotes/origin/main").Run(); err != nil {
+		t.Fatal(err)
+	}
+	branches, err = c.ListBranches()
+	if err != nil {
+		t.Fatalf("ListBranches: %v", err)
+	}
+	if b := findBranch(branches, "main", false); b == nil || !b.UpstreamGone {
+		t.Errorf("main after prune: %+v, want UpstreamGone true", b)
+	}
+	if b := findBranch(branches, "feature/my-feature", false); b == nil || b.UpstreamGone {
+		t.Errorf("feature/my-feature without upstream: %+v, want UpstreamGone false", b)
 	}
 }

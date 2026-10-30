@@ -19,6 +19,7 @@ const (
 	SectionRemote       = "REMOTE"
 	MarkerCurrentBranch = "▶ "
 	MarkerUpstreamArrow = " -> "
+	MarkerUpstreamGone  = " (gone)"
 	FilterPrompt        = "  / filter"
 	FilterActiveMark    = "  ~"
 	PlaceholderBranches = "filter branches..."

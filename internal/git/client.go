@@ -17,6 +17,8 @@ type Branch struct {
 	IsCurrent bool
 	Remote    string // remote name for remote tracking branches (e.g. "origin")
 	Upstream  string // upstream tracking ref for local branches (e.g. "origin/main")
+	// UpstreamGone is set when Upstream is configured but its remote-tracking ref was pruned.
+	UpstreamGone bool
 }
 
 // FullRef returns the ref suitable for git commands: "remote/name" for remote
@@ -156,7 +158,7 @@ func (c *Client) Commit(message string) error {
 }
 
 func (c *Client) ListBranches() ([]Branch, error) {
-	lines, err := c.runLines("branch", "-a", "--format=%(refname)\t%(HEAD)\t%(upstream:short)")
+	lines, err := c.runLines("branch", "-a", "--format=%(refname)\t%(HEAD)\t%(upstream:short)\t%(upstream:track,nobracket)")
 	if err != nil {
 		return nil, err
 	}
@@ -164,7 +166,7 @@ func (c *Client) ListBranches() ([]Branch, error) {
 	var branches []Branch
 	seen := map[string]bool{}
 	for _, line := range lines {
-		parts := strings.SplitN(line, "\t", 3)
+		parts := strings.SplitN(line, "\t", 4)
 		if len(parts) < 2 {
 			continue
 		}
@@ -197,7 +199,7 @@ func (c *Client) ListBranches() ([]Branch, error) {
 		}
 		seen[seenKey] = true
 		upstream := ""
-		if !isRemote && len(parts) == 3 {
+		if !isRemote && len(parts) >= 3 {
 			upstream = parts[2]
 		}
 		branches = append(branches, Branch{
@@ -206,6 +208,8 @@ func (c *Client) ListBranches() ([]Branch, error) {
 			IsCurrent: !isRemote && name == current,
 			Remote:    remote,
 			Upstream:  upstream,
+
+			UpstreamGone: upstream != "" && len(parts) == 4 && parts[3] == "gone",
 		})
 	}
 	return branches, nil
@@ -430,7 +434,7 @@ func (c *Client) ForcePush(remote, branch string) error {
 }
 
 func (c *Client) Fetch(remote string) error {
-	_, err := c.run("fetch", remote)
+	_, err := c.run("fetch", "--prune", remote)
 	return err
 }
 
