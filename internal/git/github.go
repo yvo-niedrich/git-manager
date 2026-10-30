@@ -6,8 +6,10 @@ import (
 	"strings"
 )
 
-type prEntry struct {
+// PR is an open GitHub pull request.
+type PR struct {
 	Number      int    `json:"number"`
+	URL         string `json:"url"`
 	HeadRefName string `json:"headRefName"`
 }
 
@@ -26,15 +28,15 @@ func (c *Client) HasGitHubRemote() bool {
 	return strings.Contains(out, "github.com")
 }
 
-// ListOpenPRs returns a map of local branch name → open PR number.
+// ListOpenPRs returns a map of local branch name → open PR.
 // Returns nil if gh is not installed, no GitHub remote exists, or any error occurs.
-func (c *Client) ListOpenPRs() map[string]int {
+func (c *Client) ListOpenPRs() map[string]PR {
 	if !GHInstalled() || !c.HasGitHubRemote() {
 		return nil
 	}
 	cmd := exec.Command("gh", "pr", "list",
 		"--state", "open",
-		"--json", "number,headRefName",
+		"--json", "number,url,headRefName",
 		"--limit", "100",
 	)
 	cmd.Dir = c.repoRoot
@@ -42,13 +44,13 @@ func (c *Client) ListOpenPRs() map[string]int {
 	if err != nil {
 		return nil
 	}
-	var entries []prEntry
+	var entries []PR
 	if err := json.Unmarshal(out, &entries); err != nil {
 		return nil
 	}
-	m := make(map[string]int, len(entries))
+	m := make(map[string]PR, len(entries))
 	for _, e := range entries {
-		m[e.HeadRefName] = e.Number
+		m[e.HeadRefName] = e
 	}
 	return m
 }

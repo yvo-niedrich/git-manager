@@ -8,13 +8,14 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/yvo.niedrich/git-manager/internal/git"
 	"github.com/yvo.niedrich/git-manager/internal/ui"
 )
 
 type BranchesModel struct {
 	branches     []git.Branch
-	prs          map[string]int
+	prs          map[string]git.PR
 	cursor       int
 	offset       int
 	width        int
@@ -44,7 +45,7 @@ func (m *BranchesModel) SetSize(w, h int) {
 	m.filterInput.Width = ui.InnerWidth(w) - 4
 }
 
-func (m *BranchesModel) SetPRs(prs map[string]int) {
+func (m *BranchesModel) SetPRs(prs map[string]git.PR) {
 	m.prs = prs
 }
 
@@ -290,8 +291,8 @@ func (m BranchesModel) View() string {
 
 		prBadge := ""
 		if !b.IsRemote {
-			if n, ok := m.prs[b.Name]; ok {
-				prBadge = fmt.Sprintf("#%d", n)
+			if pr, ok := m.prs[b.Name]; ok {
+				prBadge = ansi.SetHyperlink(pr.URL) + fmt.Sprintf("#%d", pr.Number) + ansi.ResetHyperlink()
 			}
 		}
 
@@ -352,7 +353,7 @@ func (m BranchesModel) View() string {
 			}
 		} else if prBadge != "" {
 			textW := lipgloss.Width(text)
-			badgeW := len(prBadge)
+			badgeW := lipgloss.Width(prBadge)
 			if textW+1+badgeW <= innerW {
 				pad := strings.Repeat(" ", innerW-textW-1-badgeW)
 				text = text + pad + " " + ui.PRBadgeStyle.Render(prBadge)

@@ -49,7 +49,7 @@ type refreshBranchesMsg struct {
 	err      error
 }
 
-type prLoadedMsg struct{ prs map[string]int }
+type prLoadedMsg struct{ prs map[string]git.PR }
 
 type dirtyStatusMsg struct{ dirty bool }
 
@@ -64,7 +64,7 @@ type App struct {
 	repoRoot    string
 	termW       int
 	termH       int
-	prs         map[string]int
+	prs         map[string]git.PR
 	dirty       bool // uncommitted changes present; refreshed alongside branches/commits
 	statusMsg   string
 	statusIsErr bool
