@@ -476,12 +476,12 @@ func (a *App) handleMenuAction(action MenuAction) tea.Cmd {
 		}
 	case ActionDeleteBranch:
 		if sel := a.branches.Selected(); sel != nil {
-			branch := sel.Name
+			branch, force := sel.Name, sel.UpstreamGone
 			a.dialogs.Push(NewConfirmDialogWithSubject(
 				ui.ConfirmDeleteBranch,
 				branch,
 				func() tea.Cmd {
-					return a.runWorkflow(func() git.WorkflowResult { return a.wf.DeleteBranch(branch, false) })
+					return a.runWorkflow(func() git.WorkflowResult { return a.wf.DeleteBranch(branch, force) })
 				},
 			))
 		}
